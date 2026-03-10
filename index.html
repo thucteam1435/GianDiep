@@ -1113,7 +1113,7 @@ function resolveVotesTx(room) {
     if (spy?.isBot) {
       room.round.spyGuess = '???';
       room.round.result   = 'villagers';
-      players.filter(p=>!p.isBot&&p.id!==room.round.spyId).forEach(p=>{ p.score=(p.score||0)+1; });
+      players.filter(p=>p.id!==room.round.spyId).forEach(p=>{ p.score=(p.score||0)+1; });
       room.status = 'result';
     } else {
       room.status = 'spyguess';
