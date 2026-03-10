@@ -348,6 +348,25 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   <p class="muted dots" id="sg-waiting" style="display:none;font-size:.85rem">Gián Điệp đang suy nghĩ</p>
 </div>
 
+<!-- VOTE SUMMARY -->
+<div id="screen-votesummary" class="screen">
+  <div class="logo" style="font-size:2rem">KẾT QUẢ VOTE</div>
+  <div class="divider"></div>
+  <div id="vs-eliminated-box" style="width:100%;max-width:360px;text-align:center;padding:14px;border:1px solid var(--red-dim);background:rgba(192,57,43,.07);margin-bottom:8px;">
+    <div class="reveal-label">BỊ LOẠI</div>
+    <div id="vs-eliminated-name" style="font-size:1.4rem;font-weight:600;color:var(--red);">—</div>
+  </div>
+  <div id="vs-tie-box" style="display:none;width:100%;max-width:360px;text-align:center;padding:14px;border:1px solid var(--gold-dim);background:rgba(212,160,23,.05);margin-bottom:8px;">
+    <div style="font-family:'Bebas Neue';letter-spacing:.2em;color:var(--gold);">⚖️ HOÀ PHIẾU</div>
+    <div class="muted" style="font-size:.85rem">Thảo luận thêm 1 phút</div>
+  </div>
+  <div class="gap-sm"></div>
+  <div class="section-title">SỐ PHIẾU</div>
+  <div class="vote-results" id="vs-vote-list" style="width:100%;max-width:360px;"></div>
+  <div class="gap-lg"></div>
+  <p class="muted dots" id="vs-countdown" style="font-size:.85rem">Tiếp tục sau 4 giây</p>
+</div>
+
 <!-- RESULT -->
 <div id="screen-result" class="screen">
   <div class="result-banner" id="result-banner">—</div>
@@ -587,6 +606,11 @@ function handleRoomUpdate(room) {
     } else {
       updateVoteStatus(room);
     }
+    return;
+  }
+
+  if (status === 'votesummary') {
+    if (cur !== 'votesummary') showVoteSummary(room);
     return;
   }
 
@@ -1010,39 +1034,92 @@ async function doStartVoting() {
 // ════════════════════════════════════════════════
 function renderVote(room) {
   S.selectedVote = null;
-  document.getElementById('btn-confirm-vote').disabled = true;
-  document.getElementById('vote-waiting').style.display = 'none';
+  const players = room.playerList || Object.values(room.players||{});
+  const me = players.find(p=>p.id===S.playerId);
+  const iAmEliminated = me?.eliminated || false;
+
   const grid = document.getElementById('vote-grid');
   grid.innerHTML = '';
-  const players = room.playerList || Object.values(room.players||{});
-  players.filter(p=>!p.eliminated).forEach(p => {
-    const btn = document.createElement('button');
-    btn.className = 'vote-opt';
-    btn.textContent = (p.isBot?'🤖 ':'')+p.name+(p.id===S.playerId?' (bạn)':'');
-    btn.onclick = () => {
+
+  if (iAmEliminated) {
+    // Spectator mode — chỉ xem, không vote
+    document.getElementById('btn-confirm-vote').style.display = 'none';
+    document.getElementById('vote-waiting').style.display = 'none';
+
+    // Hiện live vote counts thay vì vote options
+    renderSpectatorVotes(room);
+  } else {
+    document.getElementById('btn-confirm-vote').style.display = '';
+    document.getElementById('btn-confirm-vote').disabled = true;
+    document.getElementById('vote-waiting').style.display = 'none';
+
+    players.filter(p=>!p.eliminated).forEach(p => {
+      const btn = document.createElement('button');
+      btn.className = 'vote-opt';
+      btn.textContent = (p.isBot?'🤖 ':'')+p.name+(p.id===S.playerId?' (bạn)':'');
+      btn.onclick = () => {
+        document.querySelectorAll('.vote-opt').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel'); S.selectedVote = p.id;
+        document.getElementById('btn-confirm-vote').disabled = false;
+      };
+      grid.appendChild(btn);
+    });
+    const ab = document.createElement('button');
+    ab.className = 'vote-opt abstain'; ab.textContent = 'Bỏ phiếu trắng';
+    ab.onclick = () => {
       document.querySelectorAll('.vote-opt').forEach(b=>b.classList.remove('sel'));
-      btn.classList.add('sel'); S.selectedVote = p.id;
+      ab.classList.add('sel'); S.selectedVote = 'abstain';
       document.getElementById('btn-confirm-vote').disabled = false;
     };
-    grid.appendChild(btn);
-  });
-  const ab = document.createElement('button');
-  ab.className = 'vote-opt abstain'; ab.textContent = 'Bỏ phiếu trắng';
-  ab.onclick = () => {
-    document.querySelectorAll('.vote-opt').forEach(b=>b.classList.remove('sel'));
-    ab.classList.add('sel'); S.selectedVote = 'abstain';
-    document.getElementById('btn-confirm-vote').disabled = false;
-  };
-  grid.appendChild(ab);
+    grid.appendChild(ab);
+  }
   updateVoteStatus(room);
+}
+
+function renderSpectatorVotes(room) {
+  const players = room.playerList || Object.values(room.players||{});
+  const votes   = room.round?.votes || {};
+  const vc      = {};
+  players.forEach(p => { vc[p.id] = 0; });
+  Object.values(votes).forEach(id => { if(id&&id!=='abstain'&&vc[id]!==undefined) vc[id]++; });
+  const maxV = Math.max(1, ...Object.values(vc));
+
+  const grid = document.getElementById('vote-grid');
+  grid.style.gridTemplateColumns = '1fr';
+  grid.innerHTML = `
+    <div style="grid-column:1/-1;text-align:center;font-family:'Bebas Neue';letter-spacing:.2em;
+      font-size:.8rem;color:var(--red);opacity:.7;padding:6px 0;">
+      👻 BẠN ĐÃ BỊ LOẠI — ĐANG XEM
+    </div>
+    ${players.filter(p=>!p.eliminated).map(p=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+        background:var(--gray2);border:1px solid var(--gray3);">
+        <div style="flex:1">
+          <div>${p.isBot?'🤖 ':''}${esc(p.name)}</div>
+          <div style="height:3px;background:var(--red);margin-top:5px;
+            width:${(vc[p.id]/maxV)*100}%;transition:width .4s"></div>
+        </div>
+        <div style="font-family:'Bebas Neue';font-size:1.4rem;color:var(--red)">${vc[p.id]}</div>
+      </div>`).join('')}
+  `;
 }
 
 function updateVoteStatus(room) {
   const players = room.playerList || Object.values(room.players||{});
+  const me = players.find(p=>p.id===S.playerId);
+  const iAmEliminated = me?.eliminated || false;
+
   const humans  = players.filter(p=>!p.isBot&&!p.eliminated);
   const voted   = humans.filter(p=>room.round?.votes?.[p.id]).length;
   const el = document.getElementById('vote-status-text');
   if (el) el.textContent = `${voted}/${humans.length} người đã bỏ phiếu`;
+
+  // Cập nhật live vote counts cho spectator
+  if (iAmEliminated) {
+    renderSpectatorVotes(room);
+    return;
+  }
+
   if (S.votedThisRound) {
     document.getElementById('btn-confirm-vote').disabled = true;
     document.getElementById('vote-waiting').style.display = 'block';
@@ -1051,6 +1128,10 @@ function updateVoteStatus(room) {
 
 async function doVote() {
   if (!S.selectedVote) { toast('Hãy chọn!'); return; }
+  // Kiểm tra lại server-side xem mình có bị loại không
+  const room = await getRoom();
+  const me = Object.values(room?.players||{}).find(p=>p.id===S.playerId);
+  if (me?.eliminated) { toast('Bạn đã bị loại!'); return; }
   loading(true);
   S.votedThisRound = true;
   try {
@@ -1069,8 +1150,72 @@ async function doVote() {
 };
 
 // ════════════════════════════════════════════════
-//  RESOLVE VOTES — in transaction
+//  VOTE SUMMARY
 // ════════════════════════════════════════════════
+let _summaryTimer = null;
+
+function showVoteSummary(room) {
+  const rd      = room.round;
+  const players = room.playerList || Object.values(room.players||{});
+  const vc      = rd.voteCounts || {};
+  const isTie   = rd.isTie || false;
+
+  // Ô bị loại / hoà
+  document.getElementById('vs-eliminated-box').style.display = isTie ? 'none' : '';
+  document.getElementById('vs-tie-box').style.display        = isTie ? '' : 'none';
+  if (!isTie && rd.eliminatedName) {
+    document.getElementById('vs-eliminated-name').textContent = rd.eliminatedName;
+  }
+
+  // Danh sách vote
+  const maxV = Math.max(1, ...Object.values(vc).map(Number));
+  document.getElementById('vs-vote-list').innerHTML = [...players]
+    .sort((a,b)=>(vc[b.id]||0)-(vc[a.id]||0))
+    .map(p=>`
+      <div class="vr-row" style="${p.id===rd.eliminatedId?'border-color:var(--red);background:rgba(192,57,43,.08)':''}">
+        <div style="flex:1">
+          <div>${p.isBot?'🤖 ':''}${esc(p.name)}${p.eliminated&&p.id!==rd.eliminatedId?' ❌':''}</div>
+          <div class="vr-bar" style="width:${((vc[p.id]||0)/maxV)*100}%"></div>
+        </div>
+        <div class="vr-count">${vc[p.id]||0}</div>
+      </div>`).join('');
+
+  // Đếm ngược 4 giây
+  if (_summaryTimer) clearInterval(_summaryTimer);
+  let countdown = 4;
+  document.getElementById('vs-countdown').textContent = `Tiếp tục sau ${countdown} giây`;
+  _summaryTimer = setInterval(() => {
+    countdown--;
+    if (countdown > 0) {
+      document.getElementById('vs-countdown').textContent = `Tiếp tục sau ${countdown} giây`;
+    } else {
+      clearInterval(_summaryTimer);
+      // Host advance status sau summary
+      if (room.hostId === S.playerId) advanceAfterSummary();
+    }
+  }, 1000);
+
+  nav('votesummary', {room:S.roomId});
+}
+
+async function advanceAfterSummary() {
+  await runTransaction(roomRef(), room => {
+    if (!room || room.status !== 'votesummary') return room;
+    room.status = room.round._nextStatus || 'discussing';
+    delete room.round._nextStatus;
+    // Reset votes cho lượt mới nếu tiếp tục thảo luận
+    if (room.status === 'discussing') {
+      room.round.discussStartAt  = Date.now();
+      room.round.discussDuration = room.round.isTie ? 60 : 120;
+      room.round.votes      = {};
+      room.round.voteCounts = {};
+      room.round.isTie      = false;
+    }
+    return room;
+  });
+}
+
+
 function resolveVotesTx(room) {
   const players = Object.values(room.players||{});
   const vc = {};
@@ -1079,61 +1224,53 @@ function resolveVotesTx(room) {
     if (id&&id!=='abstain'&&vc[id]!==undefined) vc[id]++;
   });
 
-  // Tìm số vote cao nhất
-  const maxV = Math.max(0, ...Object.values(vc));
-  // Tìm TẤT CẢ người đạt maxV
+  const maxV   = Math.max(0, ...Object.values(vc));
   const topIds = Object.entries(vc).filter(([,cnt])=>cnt===maxV).map(([id])=>id);
-
   room.round.voteCounts = vc;
 
-  // Hoà (nhiều người cùng maxV) hoặc không ai bị vote → thảo luận thêm 1 phút
+  // Hoà
   if (maxV === 0 || topIds.length > 1) {
-    room.round.tieCount = (room.round.tieCount||0) + 1;
-    room.status = 'discussing';
-    room.round.discussStartAt  = Date.now();
-    room.round.discussDuration = 60; // 1 phút sau khi hoà
-    room.round.votes      = {};
-    room.round.voteCounts = {};
-    room.round.isTie      = true;
+    room.round.isTie          = true;
+    room.round.eliminatedId   = null;
+    room.round.eliminatedName = null;
+    room.round._nextStatus    = 'discussing';
+    room.status = 'votesummary';
     return;
   }
 
-  // Có người thua rõ ràng
+  // Có người bị loại
   room.round.isTie = false;
   const mostId     = topIds[0];
-  room.round.mostVotedId = mostId;
-
-  const eliminated = room.players[mostId];
+  room.round.mostVotedId    = mostId;
   room.round.eliminatedId   = mostId;
+  const eliminated = room.players[mostId];
   room.round.eliminatedName = eliminated?.name||'?';
   if (eliminated) eliminated.eliminated = true;
 
   if (mostId === room.round.spyId) {
     const spy = room.players[room.round.spyId];
     if (spy?.isBot) {
-      room.round.spyGuess = '???';
-      room.round.result   = 'villagers';
+      room.round.spyGuess    = '???';
+      room.round.result      = 'villagers';
       players.filter(p=>p.id!==room.round.spyId).forEach(p=>{ p.score=(p.score||0)+1; });
-      room.status = 'result';
+      room.round._nextStatus = 'result';
     } else {
-      room.status = 'spyguess';
+      room.round._nextStatus = 'spyguess';
     }
   } else {
     const active    = players.filter(p=>!p.eliminated);
     const villagers = active.filter(p=>p.id!==room.round.spyId);
     const spy       = room.players[room.round.spyId];
     if (villagers.length <= 1) {
-      room.round.result = 'spy';
-      room.status       = 'result';
+      room.round.result      = 'spy';
+      room.round._nextStatus = 'result';
       if (spy) spy.score = (spy.score||0)+2;
     } else {
-      room.status = 'discussing';
-      room.round.discussStartAt  = Date.now();
-      room.round.discussDuration = 120;
-      room.round.votes      = {};
-      room.round.voteCounts = {};
+      room.round._nextStatus = 'discussing';
     }
   }
+
+  room.status = 'votesummary';
 }
 
 // ════════════════════════════════════════════════
