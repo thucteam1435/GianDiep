@@ -393,63 +393,18 @@ const FIREBASE_CONFIG = {
 };
 
 // ════════════════════════════════════════════════
-//  KEYWORDS — load từ Firebase, fallback hardcode
+//  KEYWORDS — load từ Firebase
 // ════════════════════════════════════════════════
 let _keywords = null;
 
 async function getKeywords() {
   if (_keywords) return _keywords;
-  try {
-    const snap = await get(ref(db, 'keywords'));
-    if (snap.exists()) {
-      // Firebase lưu dạng object {0:[...], 1:[...]} hoặc array
-      const val = snap.val();
-      _keywords = Array.isArray(val) ? val : Object.values(val);
-      return _keywords;
-    }
-  } catch(e) {}
-  // Fallback nếu Firebase chưa có keywords
-  _keywords = KEYWORDS_FALLBACK;
+  const snap = await get(ref(db, 'keywords'));
+  if (!snap.exists()) throw new Error('Chưa có từ khoá! Admin cần chạy syncKeywordsToFirebase().');
+  const val = snap.val();
+  _keywords = Array.isArray(val) ? val : Object.values(val);
   return _keywords;
 }
-
-const KEYWORDS_FALLBACK = [
-  ["Táo","Lê","Mận","Đào"],
-  ["Cam","Quýt","Bưởi","Chanh"],
-  ["Xoài","Ổi","Mãng cầu","Sapoche"],
-  ["Dâu tây","Nho","Việt quất","Mâm xôi"],
-  ["Dưa hấu","Dưa lưới","Dưa gang","Bí ngô"],
-  ["Vải","Nhãn","Chôm chôm","Rambutan"],
-  ["Điện thoại","Máy tính bảng","Laptop","Máy tính"],
-  ["Ghế sofa","Ghế bành","Đi văng","Ghế ngồi"],
-  ["Bệnh viện","Phòng khám","Trạm y tế","Nhà thuốc"],
-  ["Trường học","Trường đại học","Trường THPT","Trường tiểu học"],
-  ["Nhà hàng","Quán ăn","Quán cơm","Quán phở"],
-  ["Sân bay","Ga tàu","Bến xe","Bến cảng"],
-  ["Siêu thị","Chợ","Cửa hàng tiện lợi","Trung tâm thương mại"],
-  ["Chó nhà","Chó hoang","Chó sói","Cáo"],
-  ["Mèo nhà","Mèo hoang","Mèo rừng","Báo"],
-  ["Gà","Vịt","Ngỗng","Ngan"],
-  ["Bò","Trâu","Dê","Cừu"],
-  ["Bác sĩ","Y tá","Dược sĩ","Hộ sinh"],
-  ["Giáo viên","Giảng viên","Gia sư","Huấn luyện viên"],
-  ["Kỹ sư","Lập trình viên","Kiến trúc sư","Nhà thiết kế"],
-  ["Cảnh sát","Bộ đội","Lính cứu hỏa","Bảo vệ"],
-  ["Cà phê đen","Cà phê sữa","Cà phê latte","Capuccino"],
-  ["Trà xanh","Trà đen","Trà sữa","Trà ô long"],
-  ["Nước cam","Sinh tố cam","Nước ép cam","Soda cam"],
-  ["Phở","Bún bò","Hủ tiếu","Bún riêu"],
-  ["Cơm tấm","Cơm chiên","Cơm rang","Cơm niêu"],
-  ["Bánh mì","Bánh bao","Bánh cuốn","Bánh ướt"],
-  ["Bóng đá","Bóng rổ","Bóng chuyền","Bóng bàn"],
-  ["Bơi lội","Chạy bộ","Đạp xe","Leo núi"],
-  ["Hà Nội","Hồ Chí Minh","Đà Nẵng","Huế"],
-  ["Đỏ","Đỏ tươi","Đỏ đậm","Đỏ cam"],
-  ["Xanh lam","Xanh dương","Xanh navy","Xanh coban"],
-  ["Xanh lá","Xanh rêu","Xanh mint","Xanh ngọc"],
-  ["Mưa","Mưa phùn","Mưa rào","Mưa bão"],
-  ["Nắng","Nắng nhẹ","Nắng gắt","Nắng hanh"],
-];
 
 // ════════════════════════════════════════════════
 //  FIREBASE INIT
@@ -841,8 +796,7 @@ async function doRemoveBot() {
 //  BEGIN ROUND — chạy trong transaction
 // ════════════════════════════════════════════════
 function beginRoundTx(room, keywords) {
-  const kw  = keywords || KEYWORDS_FALLBACK;
-  const row      = randItem(kw);
+  const row      = randItem(keywords);
   const shuffled = [...row].sort(()=>Math.random()-.5);
   const wordA    = shuffled[0];
   const wordB    = shuffled[1];
