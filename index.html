@@ -383,7 +383,7 @@ const FIREBASE_CONFIG = {
   storageBucket: "friendgame-63fb3.firebasestorage.app",
   messagingSenderId: "675984454167",
   appId: "1:675984454167:web:33e0e76b154dc1c409a252"
-};;
+};
 
 // ════════════════════════════════════════════════
 //  KEYWORDS — nhúng thẳng, không cần Google Sheet
@@ -548,6 +548,19 @@ function stopListening() {
 //  ROOM UPDATE HANDLER
 // ════════════════════════════════════════════════
 function handleRoomUpdate(room) {
+  // Pick up word assignment if available
+  tryPickUpWord(room);
+
+  // Reset per-round client state on new round
+  if (room.status === 'playing' && room.roundNumber !== S._lastRound) {
+    S._lastRound        = room.roundNumber;
+    S.cardFlipped       = false;
+    S.cardConfirmed     = false;
+    S.votedThisRound    = false;
+    S.spyGuessSubmitted = false;
+    _wordPickedUp       = false;
+  }
+
   const status = room.status;
   const cur    = parseHash().screen;
 
@@ -558,7 +571,6 @@ function handleRoomUpdate(room) {
   }
 
   if (status === 'playing') {
-    // Từ khoá được lưu trong private node, chỉ mình đọc được
     if (!S.myWord) fetchMyWord(room);
     if (cur !== 'card') showCardScreen(room);
     else updateCardConfirmCount(room);
@@ -624,7 +636,7 @@ function updateWordDisplay() {
 // ════════════════════════════════════════════════
 //  CREATE ROOM
 // ════════════════════════════════════════════════
-window.doCreateRoom = async function() {
+async function doCreateRoom() {
   const name = document.getElementById('create-name').value.trim();
   if (!name) { toast('Hãy nhập tên của bạn!'); return; }
 
@@ -658,7 +670,7 @@ window.doCreateRoom = async function() {
 // ════════════════════════════════════════════════
 //  JOIN ROOM
 // ════════════════════════════════════════════════
-window.doJoinRoom = async function() {
+async function doJoinRoom() {
   const code = document.getElementById('join-code').value.trim().toUpperCase();
   const name = document.getElementById('join-name').value.trim();
   if (!code||code.length!==4) { toast('Nhập mã 4 ký tự!'); return; }
@@ -732,7 +744,7 @@ function renderLobby(room) {
 // ════════════════════════════════════════════════
 //  TOGGLE READY
 // ════════════════════════════════════════════════
-window.doToggleReady = async function() {
+async function doToggleReady() {
   loading(true);
   try {
     // Transaction để tránh race condition
@@ -755,7 +767,7 @@ window.doToggleReady = async function() {
 // ════════════════════════════════════════════════
 //  ADD / REMOVE BOT
 // ════════════════════════════════════════════════
-window.doAddBot = async function() {
+async function doAddBot() {
   loading(true);
   try {
     await runTransaction(roomRef(), room => {
@@ -778,7 +790,7 @@ window.doAddBot = async function() {
   finally { loading(false); }
 };
 
-window.doRemoveBot = async function() {
+async function doRemoveBot() {
   loading(true);
   try {
     await runTransaction(roomRef(), room => {
@@ -860,21 +872,7 @@ function tryPickUpWord(room) {
   }
 }
 
-// Override handleRoomUpdate to also try picking up word
-const _origHandler = handleRoomUpdate;
-function handleRoomUpdate(room) {
-  tryPickUpWord(room);
-  // Reset on new round
-  if (room.status === 'playing' && room.roundNumber !== S._lastRound) {
-    S._lastRound = room.roundNumber;
-    S.cardFlipped = false;
-    S.cardConfirmed = false;
-    S.votedThisRound = false;
-    S.spyGuessSubmitted = false;
-    _wordPickedUp = false;
-  }
-  _origHandler(room);
-}
+
 
 // ════════════════════════════════════════════════
 //  CARD SCREEN
@@ -898,7 +896,7 @@ function updateCardConfirmCount(room) {
   if (el) el.textContent = `${confirmed}/${humans.length} người đã xem xong`;
 }
 
-window.flipCard = function() {
+function flipCard() {
   if (!S.cardFlipped) {
     S.cardFlipped = true;
     document.getElementById('card-wrap').classList.add('flipped');
@@ -907,7 +905,7 @@ window.flipCard = function() {
   }
 };
 
-window.doConfirmCard = async function() {
+async function doConfirmCard() {
   if (!S.cardFlipped) { toast('Hãy lật thẻ trước!'); return; }
   S.cardConfirmed = true;
   document.getElementById('btn-confirm-card').disabled = true;
@@ -961,7 +959,7 @@ function updateTimerDisplay() {
   el.className='timer-big'+(S.timerRemaining<=30&&S.timerRemaining>0?' urgent':'');
 }
 
-window.doStartVoting = async function() {
+async function doStartVoting() {
   if (S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning = false;
   loading(true);
@@ -1026,7 +1024,7 @@ function updateVoteStatus(room) {
   }
 }
 
-window.doVote = async function() {
+async function doVote() {
   if (!S.selectedVote) { toast('Hãy chọn!'); return; }
   loading(true);
   S.votedThisRound = true;
@@ -1123,7 +1121,7 @@ function showSpyGuess(room) {
   nav('spyguess', {room:S.roomId});
 }
 
-window.doSpyGuess = async function() {
+async function doSpyGuess() {
   const guess = document.getElementById('sg-input').value.trim();
   if (!guess) { toast('Nhập đáp án!'); return; }
   if (S.spyGuessSubmitted) return;
@@ -1193,7 +1191,7 @@ function showResult(room) {
 // ════════════════════════════════════════════════
 //  NEXT ROUND
 // ════════════════════════════════════════════════
-window.doNextRound = async function() {
+async function doNextRound() {
   loading(true);
   try {
     await runTransaction(roomRef(), room => {
@@ -1216,7 +1214,7 @@ window.doNextRound = async function() {
 // ════════════════════════════════════════════════
 //  LEAVE
 // ════════════════════════════════════════════════
-window.doLeave = async function() {
+async function doLeave() {
   stopListening();
   if (S.timerInterval) clearInterval(S.timerInterval);
   const {roomId, playerId} = S;
@@ -1251,8 +1249,20 @@ if (S.roomId&&S.playerId&&!['home','create','join','rules'].includes(initScreen)
 }
 
 // Make nav global
-window.nav       = nav;
+window.nav          = nav;
 window.copyJoinLink = copyJoinLink;
+window.flipCard     = flipCard;
+window.doCreateRoom     = doCreateRoom;
+window.doJoinRoom       = doJoinRoom;
+window.doToggleReady    = doToggleReady;
+window.doAddBot         = doAddBot;
+window.doRemoveBot      = doRemoveBot;
+window.doConfirmCard    = doConfirmCard;
+window.doStartVoting    = doStartVoting;
+window.doVote           = doVote;
+window.doSpyGuess       = doSpyGuess;
+window.doNextRound      = doNextRound;
+window.doLeave          = doLeave;
 
 </script>
 </body>
