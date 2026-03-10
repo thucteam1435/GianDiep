@@ -399,10 +399,27 @@ let _keywords = null;
 
 async function getKeywords() {
   if (_keywords) return _keywords;
-  const snap = await get(ref(db, 'keywords'));
-  if (!snap.exists()) throw new Error('Chưa có từ khoá! Admin cần chạy syncKeywordsToFirebase().');
-  const val = snap.val();
-  _keywords = Array.isArray(val) ? val : Object.values(val);
+  try {
+    const snap = await get(ref(db, 'keywords'));
+    if (snap.exists()) {
+      const val = snap.val();
+      _keywords = Array.isArray(val) ? val : Object.values(val);
+      return _keywords;
+    }
+  } catch(e) {
+    console.warn('Không đọc được keywords từ Firebase:', e);
+  }
+  // Fallback tạm — xóa sau khi đã sync GAS
+  _keywords = [
+    ["Táo","Lê","Mận","Đào"],
+    ["Cam","Quýt","Bưởi","Chanh"],
+    ["Chó nhà","Chó hoang","Chó sói","Cáo"],
+    ["Bệnh viện","Phòng khám","Trạm y tế","Nhà thuốc"],
+    ["Cà phê đen","Cà phê sữa","Cà phê latte","Capuccino"],
+    ["Trường học","Trường đại học","Trường THPT","Trường tiểu học"],
+    ["Nhà hàng","Quán ăn","Quán cơm","Quán phở"],
+  ];
+  toast('⚠️ Dùng từ khoá tạm — admin cần chạy syncKeywordsToFirebase()');
   return _keywords;
 }
 
@@ -847,34 +864,33 @@ function tryPickUpWord(room) {
   const myWord = room._wordAssignments[S.playerId];
   if (!myWord) return;
 
-  // Lưu từ local ngay lập tức
   _wordPickedUp = true;
   S.myWord = myWord;
   save();
   updateWordDisplay();
 
-  // Xóa phần của mình khỏi Firebase ngay — không chờ
-  update(ref(db), { [`rooms/${S.roomId}/_wordAssignments/${S.playerId}`]: null })
-    .catch(() => {});
+  // Dùng setTimeout để tránh conflict với Firebase transaction đang chạy
+  setTimeout(() => {
+    update(ref(db), { [`rooms/${S.roomId}/_wordAssignments/${S.playerId}`]: null })
+      .catch(() => {});
 
-  // Host kiểm tra xem còn ai chưa pickup không, nếu không thì xóa hẳn node
-  if (room.hostId === S.playerId) {
-    const remaining = Object.keys(room._wordAssignments)
-      .filter(id => id !== S.playerId && room._wordAssignments[id] !== null);
-    if (remaining.length === 0) {
-      update(ref(db), { [`rooms/${S.roomId}/_wordAssignments`]: null }).catch(() => {});
-    } else {
-      // Kiểm tra lại sau 2s phòng người khác chậm
-      setTimeout(async () => {
-        try {
-          const snap = await get(ref(db, `rooms/${S.roomId}/_wordAssignments`));
-          if (snap.exists() && Object.keys(snap.val()||{}).length === 0) {
-            await update(ref(db), { [`rooms/${S.roomId}/_wordAssignments`]: null });
-          }
-        } catch(e) {}
-      }, 2000);
+    if (room.hostId === S.playerId) {
+      const remaining = Object.keys(room._wordAssignments)
+        .filter(id => id !== S.playerId);
+      if (remaining.length === 0) {
+        update(ref(db), { [`rooms/${S.roomId}/_wordAssignments`]: null }).catch(() => {});
+      } else {
+        setTimeout(async () => {
+          try {
+            const snap = await get(ref(db, `rooms/${S.roomId}/_wordAssignments`));
+            if (!snap.exists() || Object.keys(snap.val()||{}).length === 0) {
+              await update(ref(db), { [`rooms/${S.roomId}/_wordAssignments`]: null });
+            }
+          } catch(e) {}
+        }, 2000);
+      }
     }
-  }
+  }, 0);
 }
 
 
