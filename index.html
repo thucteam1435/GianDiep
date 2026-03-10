@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>🕵️ Gián Điệp</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <style>
@@ -300,6 +303,9 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   <div class="gap"></div>
   <div class="timer-big" id="timer-display">02:00</div>
   <p class="muted" style="font-size:.78rem">Thời gian thảo luận còn lại</p>
+  <div id="disc-tie-notice" style="display:none;margin-top:8px;padding:8px 16px;border:1px solid var(--red-dim);background:rgba(192,57,43,.08);text-align:center;">
+    <span style="font-family:'Bebas Neue';font-size:.8rem;letter-spacing:.2em;color:var(--red);">⚖️ HOÀ PHIẾU — THẢO LUẬN THÊM 1 PHÚT!</span>
+  </div>
   <div class="gap"></div>
   <button class="btn red" onclick="doStartVoting()">BỎ PHIẾU NGAY →</button>
   <div class="gap-lg"></div>
@@ -634,6 +640,19 @@ function updateWordDisplay() {
   if (el2 && S.myWord) el2.textContent = S.myWord;
 }
 
+async function cleanOldRooms() {
+  try {
+    const snap = await get(ref(db, 'rooms'));
+    if (!snap.exists()) return;
+    const cutoff = Date.now() - 6 * 60 * 60 * 1000; // 6 tiếng
+    const updates = {};
+    snap.forEach(child => {
+      if ((child.val().createdAt || 0) < cutoff) updates['rooms/' + child.key] = null;
+    });
+    if (Object.keys(updates).length) await update(ref(db), updates);
+  } catch(e) {}
+}
+
 // ════════════════════════════════════════════════
 //  CREATE ROOM
 // ════════════════════════════════════════════════
@@ -643,7 +662,7 @@ async function doCreateRoom() {
 
   loading(true);
   try {
-    let roomId, exists;
+    await cleanOldRooms(); // dọn room cũ trước khi tạo mới
     do { roomId = genRoomCode(); exists = (await get(roomRef(roomId))).exists(); } while(exists);
 
     const playerId = genId();
@@ -935,6 +954,10 @@ function startDiscussionScreen(room) {
   document.getElementById('disc-players').textContent = (room.playerList?.length||Object.keys(room.players||{}).length)+' người';
   document.getElementById('disc-my-word').textContent = S.myWord||'—';
 
+  // Hiện thông báo nếu vừa hoà phiếu
+  const tieNotice = document.getElementById('disc-tie-notice');
+  if (tieNotice) tieNotice.style.display = room.round?.isTie ? 'block' : 'none';
+
   const startAt  = room.round?.discussStartAt || Date.now();
   const duration = room.round?.discussDuration || 120;
   S.timerRemaining = Math.max(0, duration - Math.floor((Date.now()-startAt)/1000));
@@ -1055,20 +1078,29 @@ function resolveVotesTx(room) {
     if (id&&id!=='abstain'&&vc[id]!==undefined) vc[id]++;
   });
 
-  let maxV=0, mostId=null;
-  Object.entries(vc).forEach(([id,cnt])=>{ if(cnt>maxV){maxV=cnt;mostId=id;} });
-  room.round.voteCounts  = vc;
-  room.round.mostVotedId = mostId;
+  // Tìm số vote cao nhất
+  const maxV = Math.max(0, ...Object.values(vc));
+  // Tìm TẤT CẢ người đạt maxV
+  const topIds = Object.entries(vc).filter(([,cnt])=>cnt===maxV).map(([id])=>id);
 
-  if (!mostId||maxV===0) {
-    // Hoà — vòng thảo luận mới
+  room.round.voteCounts = vc;
+
+  // Hoà (nhiều người cùng maxV) hoặc không ai bị vote → thảo luận thêm 1 phút
+  if (maxV === 0 || topIds.length > 1) {
+    room.round.tieCount = (room.round.tieCount||0) + 1;
     room.status = 'discussing';
     room.round.discussStartAt  = Date.now();
-    room.round.discussDuration = 120;
-    room.round.votes = {};
+    room.round.discussDuration = 60; // 1 phút sau khi hoà
+    room.round.votes      = {};
     room.round.voteCounts = {};
+    room.round.isTie      = true;
     return;
   }
+
+  // Có người thua rõ ràng
+  room.round.isTie = false;
+  const mostId     = topIds[0];
+  room.round.mostVotedId = mostId;
 
   const eliminated = room.players[mostId];
   room.round.eliminatedId   = mostId;
@@ -1076,10 +1108,8 @@ function resolveVotesTx(room) {
   if (eliminated) eliminated.eliminated = true;
 
   if (mostId === room.round.spyId) {
-    // Bắt đúng gián điệp
     const spy = room.players[room.round.spyId];
     if (spy?.isBot) {
-      // Bot spy → tự thua ngay
       room.round.spyGuess = '???';
       room.round.result   = 'villagers';
       players.filter(p=>!p.isBot&&p.id!==room.round.spyId).forEach(p=>{ p.score=(p.score||0)+1; });
@@ -1088,8 +1118,7 @@ function resolveVotesTx(room) {
       room.status = 'spyguess';
     }
   } else {
-    // Loại nhầm — gián điệp thắng nếu còn ≤1 dân thường
-    const active   = players.filter(p=>!p.eliminated);
+    const active    = players.filter(p=>!p.eliminated);
     const villagers = active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
     const spy       = room.players[room.round.spyId];
     if (villagers.length <= 1) {
@@ -1097,11 +1126,10 @@ function resolveVotesTx(room) {
       room.status       = 'result';
       if (spy) spy.score = (spy.score||0)+2;
     } else {
-      // Tiếp tục thảo luận
       room.status = 'discussing';
       room.round.discussStartAt  = Date.now();
       room.round.discussDuration = 120;
-      room.round.votes = {};
+      room.round.votes      = {};
       room.round.voteCounts = {};
     }
   }
