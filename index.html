@@ -1120,7 +1120,7 @@ function resolveVotesTx(room) {
     }
   } else {
     const active    = players.filter(p=>!p.eliminated);
-    const villagers = active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
+    const villagers = active.filter(p=>p.id!==room.round.spyId);
     const spy       = room.players[room.round.spyId];
     if (villagers.length <= 1) {
       room.round.result = 'spy';
