@@ -681,6 +681,7 @@ async function doCreateRoom() {
   loading(true);
   try {
     await cleanOldRooms(); // dọn room cũ trước khi tạo mới
+    let roomId, exists;
     do { roomId = genRoomCode(); exists = (await get(roomRef(roomId))).exists(); } while(exists);
 
     const playerId = genId();
