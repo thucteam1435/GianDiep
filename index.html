@@ -691,7 +691,7 @@ async function doJoinRoom() {
 
     listenRoom(code);
     nav('lobby', {room:code});
-  } catch(e) { toast('❌ '+e.message); }
+  } catch(e) { toast('❌ '+e.message); console.error('❌ '+e.message, e); }
   finally { loading(false); }
 };
 
@@ -750,7 +750,7 @@ async function doToggleReady() {
       if (players.length >= 3 && players.every(p=>p.ready)) beginRoundTx(room, kw);
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); }
   finally { loading(false); }
 };
 
@@ -774,7 +774,7 @@ async function doAddBot() {
       if (allReady) beginRoundTx(room, kw);
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); }
   finally { loading(false); }
 };
 
@@ -788,7 +788,7 @@ async function doRemoveBot() {
       if (bot) delete room.players[bot.id];
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); }
   finally { loading(false); }
 };
 
@@ -985,7 +985,7 @@ async function doStartVoting() {
       });
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); }
   finally { loading(false); }
 };
 
@@ -1048,7 +1048,7 @@ async function doVote() {
       if (allVoted) resolveVotesTx(room);
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); S.votedThisRound=false; }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); S.votedThisRound=false; }
   finally { loading(false); }
 };
 
@@ -1163,7 +1163,7 @@ async function doSpyGuess() {
       room.status = 'result';
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); S.spyGuessSubmitted=false; }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); S.spyGuessSubmitted=false; }
   finally { loading(false); }
 };
 
@@ -1221,7 +1221,7 @@ async function doNextRound() {
       room.round = { votes:{}, voteCounts:{}, spyGuess:null, result:null };
       return room;
     });
-  } catch(e) { toast('Lỗi: '+e.message); }
+  } catch(e) { toast('Lỗi: '+e.message); console.error('Lỗi: '+e.message, e); }
   finally { loading(false); }
 };
 
