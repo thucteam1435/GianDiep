@@ -393,9 +393,27 @@ const FIREBASE_CONFIG = {
 };
 
 // ════════════════════════════════════════════════
-//  KEYWORDS — nhúng thẳng, không cần Google Sheet
+//  KEYWORDS — load từ Firebase, fallback hardcode
 // ════════════════════════════════════════════════
-const KEYWORDS = [
+let _keywords = null;
+
+async function getKeywords() {
+  if (_keywords) return _keywords;
+  try {
+    const snap = await get(ref(db, 'keywords'));
+    if (snap.exists()) {
+      // Firebase lưu dạng object {0:[...], 1:[...]} hoặc array
+      const val = snap.val();
+      _keywords = Array.isArray(val) ? val : Object.values(val);
+      return _keywords;
+    }
+  } catch(e) {}
+  // Fallback nếu Firebase chưa có keywords
+  _keywords = KEYWORDS_FALLBACK;
+  return _keywords;
+}
+
+const KEYWORDS_FALLBACK = [
   ["Táo","Lê","Mận","Đào"],
   ["Cam","Quýt","Bưởi","Chanh"],
   ["Xoài","Ổi","Mãng cầu","Sapoche"],
@@ -767,17 +785,13 @@ function renderLobby(room) {
 async function doToggleReady() {
   loading(true);
   try {
-    // Transaction để tránh race condition
+    const kw = await getKeywords();
     await runTransaction(roomRef(), room => {
       if (!room) return room;
       if (!room.players?.[S.playerId]) return room;
-      const me = room.players[S.playerId];
-      me.ready = !me.ready;
-
-      // Check allReady
+      room.players[S.playerId].ready = !room.players[S.playerId].ready;
       const players = Object.values(room.players);
-      const allReady = players.length >= 3 && players.every(p=>p.ready);
-      if (allReady) beginRoundTx(room);
+      if (players.length >= 3 && players.every(p=>p.ready)) beginRoundTx(room, kw);
       return room;
     });
   } catch(e) { toast('Lỗi: '+e.message); }
@@ -790,20 +804,18 @@ async function doToggleReady() {
 async function doAddBot() {
   loading(true);
   try {
+    const kw = await getKeywords();
     await runTransaction(roomRef(), room => {
-      if (!room) return room;
-      if (room.status !== 'waiting') return room;
+      if (!room || room.status !== 'waiting') return room;
       const players = Object.values(room.players||{});
       if (players.length >= 8) { toast('Phòng đầy!'); return room; }
-
       const botNames = ["Bot Alpha","Bot Beta","Bot Gamma","Bot Delta","Bot Epsilon","Bot Zeta"];
       const used = players.map(p=>p.name);
       const name = botNames.find(n=>!used.includes(n)) || ('Bot '+genId().slice(0,4));
       const botId = 'bot_'+genId();
       room.players[botId] = { id:botId, name, ready:true, score:0, isBot:true, cardConfirmed:false };
-
       const allReady = Object.values(room.players).length >= 3 && Object.values(room.players).every(p=>p.ready);
-      if (allReady) beginRoundTx(room);
+      if (allReady) beginRoundTx(room, kw);
       return room;
     });
   } catch(e) { toast('Lỗi: '+e.message); }
@@ -827,8 +839,9 @@ async function doRemoveBot() {
 // ════════════════════════════════════════════════
 //  BEGIN ROUND — chạy trong transaction
 // ════════════════════════════════════════════════
-function beginRoundTx(room) {
-  const row      = randItem(KEYWORDS);
+function beginRoundTx(room, keywords) {
+  const kw  = keywords || KEYWORDS_FALLBACK;
+  const row      = randItem(kw);
   const shuffled = [...row].sort(()=>Math.random()-.5);
   const wordA    = shuffled[0];
   const wordB    = shuffled[1];
@@ -877,17 +890,34 @@ let _wordPickedUp = false;
 function tryPickUpWord(room) {
   if (_wordPickedUp || !room._wordAssignments) return;
   const myWord = room._wordAssignments[S.playerId];
-  if (myWord) {
-    _wordPickedUp = true;
-    S.myWord = myWord;
-    save();
-    updateWordDisplay();
-    // Clean up _wordAssignments after all players have picked up
-    // (host does cleanup after a short delay)
-    if (room.hostId === S.playerId) {
+  if (!myWord) return;
+
+  // Lưu từ local ngay lập tức
+  _wordPickedUp = true;
+  S.myWord = myWord;
+  save();
+  updateWordDisplay();
+
+  // Xóa phần của mình khỏi Firebase ngay — không chờ
+  update(ref(db), { [`rooms/${S.roomId}/_wordAssignments/${S.playerId}`]: null })
+    .catch(() => {});
+
+  // Host kiểm tra xem còn ai chưa pickup không, nếu không thì xóa hẳn node
+  if (room.hostId === S.playerId) {
+    const remaining = Object.keys(room._wordAssignments)
+      .filter(id => id !== S.playerId && room._wordAssignments[id] !== null);
+    if (remaining.length === 0) {
+      update(ref(db), { [`rooms/${S.roomId}/_wordAssignments`]: null }).catch(() => {});
+    } else {
+      // Kiểm tra lại sau 2s phòng người khác chậm
       setTimeout(async () => {
-        try { await update(roomRef(), { _wordAssignments: null }); } catch(e){}
-      }, 3000);
+        try {
+          const snap = await get(ref(db, `rooms/${S.roomId}/_wordAssignments`));
+          if (snap.exists() && Object.keys(snap.val()||{}).length === 0) {
+            await update(ref(db), { [`rooms/${S.roomId}/_wordAssignments`]: null });
+          }
+        } catch(e) {}
+      }, 2000);
     }
   }
 }
