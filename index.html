@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>🕵️ Gián Điệp</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ── ROOT ── */
+:root {
+  --black:#0a0a0a; --red:#c0392b; --red-dim:#7a1a12;
+  --gold:#d4a017;  --gold-dim:#8a6810;
+  --cream:#f5f0e8; --gray:#1e1e1e; --gray2:#2a2a2a; --gray3:#3d3d3d;
+  --green:#27ae60;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;overscroll-behavior:none;}
+body{
+  background:var(--black);color:var(--cream);
+  font-family:'Crimson Pro',serif;font-size:16px;min-height:100vh;
+  background-image:
+    repeating-linear-gradient(0deg,transparent,transparent 40px,rgba(255,255,255,.012) 40px,rgba(255,255,255,.012) 41px),
+    repeating-linear-gradient(90deg,transparent,transparent 40px,rgba(255,255,255,.012) 40px,rgba(255,255,255,.012) 41px);
+}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 4px);}
+
+/* ── SCREENS ── */
+.screen{display:none;min-height:100vh;padding:24px 16px 48px;
+  flex-direction:column;align-items:center;justify-content:center;animation:fadeUp .3s ease;}
+.screen.active{display:flex;}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── TYPOGRAPHY ── */
+.logo{font-family:'Bebas Neue',sans-serif;letter-spacing:.15em;line-height:1;text-align:center;
+  text-shadow:0 0 40px rgba(192,57,43,.5);}
+.logo .accent{color:var(--red);text-shadow:0 0 25px rgba(192,57,43,1);}
+.tagline{font-style:italic;color:var(--gold);font-size:.9rem;letter-spacing:.3em;text-transform:uppercase;opacity:.75;text-align:center;}
+.section-title{font-family:'Bebas Neue',sans-serif;letter-spacing:.3em;font-size:.82rem;
+  color:var(--gold);opacity:.65;text-align:center;margin-bottom:8px;}
+.muted{opacity:.45;font-style:italic;font-size:.88rem;text-align:center;}
+.dots::after{content:'.';animation:dots 1.2s steps(3,end) infinite;}
+@keyframes dots{0%,100%{content:'.'}33%{content:'..'}66%{content:'...'}}
+
+/* ── SPACING ── */
+.divider{width:50px;height:1px;background:var(--gold-dim);margin:14px auto;}
+.gap{height:14px;}.gap-lg{height:28px;}.gap-sm{height:8px;}
+
+/* ── INPUTS ── */
+.inp{width:100%;background:var(--gray2);border:1px solid var(--gray3);color:var(--cream);
+  font-family:'Crimson Pro',serif;font-size:1.05rem;padding:12px 14px;outline:none;
+  transition:border-color .2s;-webkit-appearance:none;border-radius:0;}
+.inp:focus{border-color:var(--gold);}
+.inp.big{font-family:'Bebas Neue',sans-serif;font-size:2rem;letter-spacing:.3em;text-align:center;text-transform:uppercase;}
+.inp::placeholder{opacity:.35;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;
+  font-family:'Bebas Neue',sans-serif;letter-spacing:.2em;font-size:1.1rem;
+  padding:13px 28px;border:2px solid var(--gold);background:transparent;
+  color:var(--gold);cursor:pointer;position:relative;overflow:hidden;transition:color .2s;white-space:nowrap;}
+.btn::before{content:'';position:absolute;inset:0;background:var(--gold);
+  transform:translateX(-101%);transition:transform .22s ease;z-index:0;}
+.btn:hover::before,.btn:active::before{transform:translateX(0);}
+.btn>*{position:relative;z-index:1;}
+.btn:hover,.btn:active{color:var(--black);}
+.btn.red{border-color:var(--red);color:var(--red);}
+.btn.red::before{background:var(--red);}
+.btn.red:hover,.btn.red:active{color:var(--cream);}
+.btn.green{border-color:var(--green);color:var(--green);}
+.btn.green::before{background:var(--green);}
+.btn.green:hover,.btn.green:active{color:var(--cream);}
+.btn.ghost{border-color:var(--gray3);color:var(--gray3);font-size:.88rem;padding:9px 16px;}
+.btn.ghost::before{background:var(--gray3);}
+.btn.ghost:hover,.btn.ghost:active{color:var(--cream);}
+.btn.ghost.red{border-color:var(--red-dim);color:var(--red-dim);}
+.btn.ghost.red::before{background:var(--red-dim);}
+.btn.ghost.red:hover,.btn.ghost.red:active{color:var(--cream);}
+.btn.full{width:100%;}.btn:disabled{opacity:.3;pointer-events:none;}
+
+/* ── ROOM CODE ── */
+.room-code-display{font-family:'Bebas Neue',sans-serif;font-size:clamp(3rem,14vw,5.5rem);
+  letter-spacing:.25em;color:var(--cream);text-align:center;
+  text-shadow:0 0 30px rgba(212,160,23,.4);
+  background:var(--gray2);border:1px solid var(--gold-dim);padding:16px 24px;line-height:1;cursor:pointer;}
+.room-code-display:hover{border-color:var(--gold);}
+
+/* ── PLAYER LIST ── */
+.player-list{width:100%;max-width:380px;display:flex;flex-direction:column;gap:6px;}
+.player-row{display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;background:var(--gray2);border:1px solid var(--gray3);}
+.player-row.bot-row{border-style:dashed;opacity:.75;}
+.pname{font-size:1rem;}
+.pbadge{font-family:'Bebas Neue';font-size:.72rem;letter-spacing:.2em;padding:3px 9px;border:1px solid;}
+.host-badge{color:var(--gold);border-color:var(--gold-dim);}
+.you-badge{color:var(--green);border-color:var(--green);}
+.ready-badge{color:var(--green);border-color:var(--green);}
+.wait-badge{color:var(--gray3);border-color:var(--gray3);}
+.bot-badge{color:#888;border-color:#555;}
+
+/* ── CARD ── */
+.card-wrap{perspective:1000px;width:min(300px,90vw);height:190px;cursor:pointer;margin:16px auto;}
+.card-inner{width:100%;height:100%;transform-style:preserve-3d;
+  transition:transform .65s cubic-bezier(.4,0,.2,1);position:relative;}
+.card-wrap.flipped .card-inner{transform:rotateY(180deg);}
+.card-face{position:absolute;inset:0;backface-visibility:hidden;
+  display:flex;align-items:center;justify-content:center;flex-direction:column;border:1px solid;gap:10px;padding:20px;}
+.card-back{background:linear-gradient(135deg,#111 0%,#181818 50%,#0d0d0d 100%);border-color:var(--gold-dim);
+  background-image:repeating-linear-gradient(45deg,transparent,transparent 10px,rgba(212,160,23,.025) 10px,rgba(212,160,23,.025) 11px);}
+.card-back-icon{font-size:2.6rem;filter:drop-shadow(0 0 10px rgba(192,57,43,.8));}
+.card-back-label{font-family:'Bebas Neue';letter-spacing:.35em;color:var(--gold-dim);font-size:.8rem;}
+.card-front{transform:rotateY(180deg);background:var(--gray2);border-color:var(--gold);padding:24px;text-align:center;}
+.card-role{font-family:'Bebas Neue';letter-spacing:.25em;font-size:.8rem;opacity:.55;}
+.card-word{font-size:clamp(1.6rem,6vw,2.2rem);font-weight:600;line-height:1.2;color:var(--gold);}
+.card-sub{font-style:italic;font-size:.82rem;opacity:.5;max-width:200px;text-align:center;}
+.tap-hint{font-size:.7rem;opacity:.25;letter-spacing:.2em;text-transform:uppercase;margin-top:4px;}
+
+/* ── TIMER ── */
+.timer-big{font-family:'Bebas Neue';font-size:clamp(4rem,15vw,7rem);letter-spacing:.05em;
+  text-shadow:0 0 20px rgba(255,255,255,.1);transition:color .3s;}
+.timer-big.urgent{color:var(--red)!important;text-shadow:0 0 20px rgba(192,57,43,.8);animation:pulse .5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+
+/* ── VOTE ── */
+.vote-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;max-width:380px;}
+.vote-opt{padding:14px 10px;border:1px solid var(--gray3);background:var(--gray2);
+  color:var(--cream);font-family:'Crimson Pro',serif;font-size:1rem;cursor:pointer;
+  text-align:center;transition:border-color .15s,background .15s;}
+.vote-opt:hover{border-color:var(--red);background:rgba(192,57,43,.08);}
+.vote-opt.sel{border-color:var(--red);background:rgba(192,57,43,.18);}
+.vote-opt.abstain{grid-column:1/-1;border-style:dashed;opacity:.45;font-style:italic;}
+.vote-opt.eliminated{opacity:.3;pointer-events:none;text-decoration:line-through;}
+
+/* ── RESULT ── */
+.result-banner{font-family:'Bebas Neue';font-size:clamp(2rem,8vw,4.5rem);
+  letter-spacing:.15em;text-align:center;line-height:1.1;}
+.result-banner.win{color:var(--gold);text-shadow:0 0 30px rgba(212,160,23,.6);}
+.result-banner.lose{color:var(--red);text-shadow:0 0 30px rgba(192,57,43,.8);}
+.reveal-box{border:1px solid var(--gold-dim);background:rgba(212,160,23,.04);
+  padding:14px 20px;text-align:center;min-width:130px;}
+.reveal-box.red-box{border-color:var(--red-dim);background:rgba(192,57,43,.05);}
+.reveal-label{font-size:.7rem;letter-spacing:.3em;text-transform:uppercase;opacity:.45;margin-bottom:4px;}
+.reveal-value{font-size:1.3rem;font-weight:600;color:var(--gold);}
+.reveal-box.red-box .reveal-value{color:var(--red);}
+.score-table{width:100%;max-width:360px;border-collapse:collapse;}
+.score-table td{padding:8px 12px;border-bottom:1px solid var(--gray3);font-size:.95rem;}
+.score-table td:last-child{font-family:'Bebas Neue';font-size:1.2rem;color:var(--gold);text-align:right;}
+.vote-results{display:flex;flex-direction:column;gap:5px;width:100%;max-width:360px;}
+.vr-row{display:flex;justify-content:space-between;align-items:center;
+  padding:8px 14px;background:var(--gray2);border:1px solid var(--gray3);}
+.vr-count{font-family:'Bebas Neue';font-size:1.4rem;color:var(--red);}
+.vr-bar{height:3px;background:var(--red);margin-top:3px;transition:width .6s ease;}
+
+/* ── TOAST & LOADING ── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(60px);
+  background:var(--gray2);border:1px solid var(--gold-dim);color:var(--cream);
+  font-size:.88rem;padding:10px 20px;transition:transform .3s ease;z-index:10000;
+  pointer-events:none;max-width:90vw;text-align:center;}
+#toast.show{transform:translateX(-50%) translateY(0);}
+#loading{position:fixed;inset:0;background:rgba(10,10,10,.85);display:none;
+  align-items:center;justify-content:center;z-index:9000;flex-direction:column;gap:12px;}
+#loading.show{display:flex;}
+.spin{width:32px;height:32px;border:2px solid var(--gray3);border-top-color:var(--gold);
+  border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.load-text{font-family:'Bebas Neue';letter-spacing:.3em;color:var(--gold);opacity:.7;font-size:.9rem;}
+
+/* ── UTILITY ── */
+.hidden{display:none!important;}
+.bot-controls{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;}
+
+@media(max-width:380px){.vote-grid{grid-template-columns:1fr;}.vote-opt.abstain{grid-column:1;}}
+</style>
+</head>
+<body>
+<div id="loading"><div class="spin"></div><div class="load-text">Đang xử lý...</div></div>
+<div id="toast"></div>
+
+<!-- HOME -->
+<div id="screen-home" class="screen active">
+  <div class="logo" style="font-size:clamp(64px,16vw,110px)">GIÁN<span class="accent">ĐIỆP</span></div>
+  <div class="tagline">Ai trong số các ngươi... là kẻ nội gián?</div>
+  <div class="divider"></div><div class="gap-lg"></div>
+  <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px;">
+    <button class="btn full" onclick="nav('create')">TẠO PHÒNG</button>
+    <button class="btn full" onclick="nav('join')">VÀO PHÒNG</button>
+    <button class="btn ghost full" onclick="nav('rules')">LUẬT CHƠI</button>
+  </div>
+</div>
+
+<!-- RULES -->
+<div id="screen-rules" class="screen">
+  <div class="logo" style="font-size:2.5rem">LUẬT CHƠI</div>
+  <div class="divider"></div><div class="gap"></div>
+  <div style="max-width:420px;line-height:1.9;font-size:1rem;">
+    <p>🃏 Mỗi người nhận <strong style="color:var(--gold)">1 từ khoá bí mật</strong> — không biết mình là Dân thường hay Gián Điệp!</p>
+    <div class="gap"></div>
+    <p>• <strong>Dân thường</strong> nhận <span style="color:var(--gold)">Từ A</span></p>
+    <p>• <strong style="color:var(--red)">Gián Điệp</strong> nhận <span style="color:var(--red)">Từ B</span> — gần giống nhưng khác!</p>
+    <p style="font-size:.85rem;opacity:.5;margin-top:4px">Không ai biết mình thuộc phe nào.</p>
+    <div class="gap"></div>
+    <p>🗣️ Thảo luận <strong>2 phút</strong> — nói gợi ý về từ của mình để tìm ra ai dùng từ khác phe.</p>
+    <div class="gap"></div>
+    <p>🗳️ Bỏ phiếu loại Gián Điệp. Nếu đúng, Gián Điệp còn 1 cơ hội đoán Từ A.</p>
+    <div class="gap"></div>
+    <p style="color:var(--gold)">🏆 Dân thường thắng nếu loại đúng và Gián Điệp đoán sai.<br>Gián Điệp thắng nếu không bị lộ hoặc đoán đúng Từ A.</p>
+  </div>
+  <div class="gap-lg"></div>
+  <button class="btn" onclick="nav('home')">← QUAY LẠI</button>
+</div>
+
+<!-- CREATE -->
+<div id="screen-create" class="screen">
+  <div class="logo" style="font-size:2.5rem">TẠO PHÒNG</div>
+  <div class="divider"></div><div class="gap"></div>
+  <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;">
+    <div class="section-title">Tên của bạn</div>
+    <input class="inp" id="create-name" placeholder="Nhập tên..." maxlength="20" autocomplete="off">
+    <div class="gap-sm"></div>
+    <button class="btn full" onclick="doCreateRoom()">TẠO PHÒNG</button>
+    <button class="btn ghost full" onclick="nav('home')">← QUAY LẠI</button>
+  </div>
+</div>
+
+<!-- JOIN -->
+<div id="screen-join" class="screen">
+  <div class="logo" style="font-size:2.5rem">VÀO PHÒNG</div>
+  <div class="divider"></div><div class="gap"></div>
+  <div style="width:100%;max-width:320px;display:flex;flex-direction:column;gap:10px;">
+    <div class="section-title">Mã phòng</div>
+    <input class="inp big" id="join-code" placeholder="ABCD" maxlength="4"
+           autocomplete="off" oninput="this.value=this.value.toUpperCase()">
+    <div class="section-title" style="margin-top:4px">Tên của bạn</div>
+    <input class="inp" id="join-name" placeholder="Nhập tên..." maxlength="20" autocomplete="off">
+    <div class="gap-sm"></div>
+    <button class="btn full" onclick="doJoinRoom()">VÀO PHÒNG</button>
+    <button class="btn ghost full" onclick="nav('home')">← QUAY LẠI</button>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen">
+  <div class="logo" style="font-size:2rem">PHÒNG CHỜ</div>
+  <div class="gap-sm"></div>
+  <div class="section-title">MÃ PHÒNG — nhấn để copy link mời</div>
+  <div class="room-code-display" id="lobby-code" onclick="copyJoinLink()">----</div>
+  <p class="muted" style="font-size:.78rem">📋 Nhấn mã để copy link gửi bạn bè</p>
+  <div class="gap"></div>
+  <div class="section-title">NGƯỜI CHƠI (<span id="lobby-count">0</span>/8)</div>
+  <div class="player-list" id="lobby-player-list"></div>
+  <div class="gap"></div>
+  <p class="muted" id="lobby-status-text">Đang chờ người chơi...</p>
+  <div class="gap-lg"></div>
+  <button class="btn full green" id="btn-ready" onclick="doToggleReady()" style="max-width:320px">✓ SẴN SÀNG</button>
+  <div class="gap-sm"></div>
+  <div id="bot-buttons" class="bot-controls hidden">
+    <button class="btn ghost" onclick="doAddBot()">🤖 + THÊM BOT</button>
+    <button class="btn ghost red hidden" id="btn-remove-bot" onclick="doRemoveBot()">− BỎ BOT</button>
+  </div>
+  <div class="gap-sm"></div>
+  <button class="btn ghost" onclick="doLeave()">RỜI PHÒNG</button>
+</div>
+
+<!-- CARD -->
+<div id="screen-card" class="screen">
+  <div class="logo" style="font-size:2rem">TỪ KHOÁ CỦA BẠN</div>
+  <div class="divider"></div>
+  <p class="muted">Nhấn thẻ để xem — đừng để người khác thấy!</p>
+  <div class="gap-sm"></div>
+  <div class="card-wrap" id="card-wrap" onclick="flipCard()">
+    <div class="card-inner">
+      <div class="card-face card-back">
+        <div class="card-back-icon">🕵️</div>
+        <div class="card-back-label">NHẤN ĐỂ XEM</div>
+      </div>
+      <div class="card-face card-front">
+        <div class="card-role">TỪ KHOÁ CỦA BẠN</div>
+        <div class="card-word" id="cf-word">—</div>
+        <div class="card-sub">Ghi nhớ kỹ — bạn không biết mình là ai!</div>
+      </div>
+    </div>
+  </div>
+  <div class="tap-hint">Nhấn vào thẻ để lật</div>
+  <div class="gap-lg"></div>
+  <p class="muted" style="font-size:.82rem" id="card-confirm-count"></p>
+  <div class="gap-sm"></div>
+  <button class="btn green" id="btn-confirm-card" onclick="doConfirmCard()" disabled>ĐÃ GHI NHỚ ✓</button>
+  <div class="gap-sm"></div>
+  <p class="muted dots" id="card-waiting-others" style="display:none;font-size:.85rem">Chờ người khác xem thẻ xong</p>
+</div>
+
+<!-- DISCUSSION -->
+<div id="screen-discussion" class="screen">
+  <div class="logo" style="font-size:2.2rem">THẢO LUẬN</div>
+  <div class="divider"></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin:8px 0;">
+    <span style="font-family:'Bebas Neue';font-size:.75rem;letter-spacing:.2em;padding:4px 12px;border:1px solid var(--gold-dim);color:var(--gold);opacity:.7;" id="disc-round">VÒNG 1</span>
+    <span style="font-family:'Bebas Neue';font-size:.75rem;letter-spacing:.2em;padding:4px 12px;border:1px solid var(--gold-dim);color:var(--gold);opacity:.7;" id="disc-players">4 người</span>
+  </div>
+  <div class="gap"></div>
+  <div class="timer-big" id="timer-display">02:00</div>
+  <p class="muted" style="font-size:.78rem">Thời gian thảo luận còn lại</p>
+  <div class="gap"></div>
+  <button class="btn red" onclick="doStartVoting()">BỎ PHIẾU NGAY →</button>
+  <div class="gap-lg"></div>
+  <div class="section-title">TỪ KHOÁ CỦA BẠN</div>
+  <div style="font-size:1.7rem;font-weight:600;color:var(--gold);letter-spacing:.05em;" id="disc-my-word">—</div>
+  <p class="muted" style="font-size:.8rem;margin-top:6px">Bạn là Dân thường hay Gián Điệp?</p>
+</div>
+
+<!-- VOTE -->
+<div id="screen-vote" class="screen">
+  <div class="logo" style="font-size:2.2rem">BỎ PHIẾU</div>
+  <p class="muted">Ai là <span style="color:var(--red)">Gián Điệp</span>?</p>
+  <div class="divider"></div><div class="gap"></div>
+  <div class="section-title">CHỌN NGƯỜI BẠN NGHI NGỜ</div>
+  <div class="vote-grid" id="vote-grid"></div>
+  <div class="gap"></div>
+  <p class="muted" style="font-size:.85rem" id="vote-status-text"></p>
+  <div class="gap"></div>
+  <button class="btn red full" id="btn-confirm-vote" onclick="doVote()" disabled style="max-width:380px">XÁC NHẬN</button>
+  <div class="gap-sm"></div>
+  <p class="muted dots" id="vote-waiting" style="display:none;font-size:.85rem">Đang chờ người khác bỏ phiếu</p>
+  <div class="gap-sm"></div>
+  <button class="btn ghost" onclick="doLeave()">RỜI PHÒNG</button>
+</div>
+
+<!-- SPY GUESS -->
+<div id="screen-spyguess" class="screen">
+  <div style="font-family:'Bebas Neue';font-size:clamp(1.4rem,5vw,2.2rem);letter-spacing:.2em;color:var(--red);text-align:center;">🕵️ BỊ LỘ RỒI!</div>
+  <div class="divider"></div><div class="gap"></div>
+  <p style="text-align:center;font-size:1.05rem;max-width:320px;line-height:1.8;">
+    <strong style="color:var(--red)" id="sg-spy-name">Gián Điệp</strong> bị tố cáo!<br>
+    Còn 1 cơ hội: đoán đúng <strong>Từ A của Dân thường</strong> để thắng!
+  </p>
+  <div class="gap"></div>
+  <div id="sg-input-area" style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+    <div class="section-title">TỪ KHOÁ CỦA DÂN THƯỜNG LÀ GÌ?</div>
+    <input class="inp" id="sg-input" placeholder="Nhập đáp án..." autocomplete="off" style="max-width:320px;">
+    <button class="btn red" onclick="doSpyGuess()">ĐÓ LÀ ĐÁP ÁN!</button>
+  </div>
+  <p class="muted dots" id="sg-waiting" style="display:none;font-size:.85rem">Gián Điệp đang suy nghĩ</p>
+</div>
+
+<!-- RESULT -->
+<div id="screen-result" class="screen">
+  <div class="result-banner" id="result-banner">—</div>
+  <div class="gap"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+    <div class="reveal-box"><div class="reveal-label">Từ Dân thường</div><div class="reveal-value" id="res-word-a">—</div></div>
+    <div class="reveal-box red-box"><div class="reveal-label">Từ Gián Điệp</div><div class="reveal-value" id="res-word-b">—</div></div>
+  </div>
+  <div class="gap-sm"></div>
+  <div class="reveal-box red-box" style="max-width:360px;width:100%;">
+    <div class="reveal-label">Gián Điệp là</div><div class="reveal-value" id="res-spy">—</div>
+  </div>
+  <div class="gap"></div>
+  <div class="section-title">KẾT QUẢ BỎ PHIẾU</div>
+  <div class="vote-results" id="res-votes"></div>
+  <div class="gap"></div>
+  <div class="section-title">BẢNG ĐIỂM</div>
+  <table class="score-table" id="res-scores"></table>
+  <div class="gap-lg"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+    <button class="btn green" id="btn-next-round" onclick="doNextRound()" style="display:none">VÒNG TIẾP →</button>
+    <button class="btn ghost" onclick="doLeave()">RỜI PHÒNG</button>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, update, onValue, off, runTransaction, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ════════════════════════════════════════════════
+//  ⚙️  CẤU HÌNH FIREBASE — điền vào đây
+// ════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBwl9j1V_PEP_5etnhhAUR1UUU3bfpx8uI",
+  authDomain: "friendgame-63fb3.firebaseapp.com",
+  projectId: "friendgame-63fb3",
+  storageBucket: "friendgame-63fb3.firebasestorage.app",
+  messagingSenderId: "675984454167",
+  appId: "1:675984454167:web:33e0e76b154dc1c409a252"
+};;
+
+// ════════════════════════════════════════════════
+//  KEYWORDS — nhúng thẳng, không cần Google Sheet
+// ════════════════════════════════════════════════
+const KEYWORDS = [
+  ["Táo","Lê","Mận","Đào"],
+  ["Cam","Quýt","Bưởi","Chanh"],
+  ["Xoài","Ổi","Mãng cầu","Sapoche"],
+  ["Dâu tây","Nho","Việt quất","Mâm xôi"],
+  ["Dưa hấu","Dưa lưới","Dưa gang","Bí ngô"],
+  ["Vải","Nhãn","Chôm chôm","Rambutan"],
+  ["Điện thoại","Máy tính bảng","Laptop","Máy tính"],
+  ["Ghế sofa","Ghế bành","Đi văng","Ghế ngồi"],
+  ["Bệnh viện","Phòng khám","Trạm y tế","Nhà thuốc"],
+  ["Trường học","Trường đại học","Trường THPT","Trường tiểu học"],
+  ["Nhà hàng","Quán ăn","Quán cơm","Quán phở"],
+  ["Sân bay","Ga tàu","Bến xe","Bến cảng"],
+  ["Siêu thị","Chợ","Cửa hàng tiện lợi","Trung tâm thương mại"],
+  ["Chó nhà","Chó hoang","Chó sói","Cáo"],
+  ["Mèo nhà","Mèo hoang","Mèo rừng","Báo"],
+  ["Gà","Vịt","Ngỗng","Ngan"],
+  ["Bò","Trâu","Dê","Cừu"],
+  ["Bác sĩ","Y tá","Dược sĩ","Hộ sinh"],
+  ["Giáo viên","Giảng viên","Gia sư","Huấn luyện viên"],
+  ["Kỹ sư","Lập trình viên","Kiến trúc sư","Nhà thiết kế"],
+  ["Cảnh sát","Bộ đội","Lính cứu hỏa","Bảo vệ"],
+  ["Cà phê đen","Cà phê sữa","Cà phê latte","Capuccino"],
+  ["Trà xanh","Trà đen","Trà sữa","Trà ô long"],
+  ["Nước cam","Sinh tố cam","Nước ép cam","Soda cam"],
+  ["Phở","Bún bò","Hủ tiếu","Bún riêu"],
+  ["Cơm tấm","Cơm chiên","Cơm rang","Cơm niêu"],
+  ["Bánh mì","Bánh bao","Bánh cuốn","Bánh ướt"],
+  ["Bóng đá","Bóng rổ","Bóng chuyền","Bóng bàn"],
+  ["Bơi lội","Chạy bộ","Đạp xe","Leo núi"],
+  ["Hà Nội","Hồ Chí Minh","Đà Nẵng","Huế"],
+  ["Đỏ","Đỏ tươi","Đỏ đậm","Đỏ cam"],
+  ["Xanh lam","Xanh dương","Xanh navy","Xanh coban"],
+  ["Xanh lá","Xanh rêu","Xanh mint","Xanh ngọc"],
+  ["Mưa","Mưa phùn","Mưa rào","Mưa bão"],
+  ["Nắng","Nắng nhẹ","Nắng gắt","Nắng hanh"],
+];
+
+// ════════════════════════════════════════════════
+//  FIREBASE INIT
+// ════════════════════════════════════════════════
+const app = initializeApp(FIREBASE_CONFIG);
+const db  = getDatabase(app);
+
+// ════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════
+const S = {
+  roomId:'', playerId:'', playerName:'',
+  myWord: null,       // từ riêng của mình — lưu local, không lên Firebase
+  roomListener: null, // unsubscribe fn
+  timerInterval: null,
+  timerRemaining: 120,
+  timerRunning: false,
+  selectedVote: null,
+  votedThisRound: false,
+  cardFlipped: false,
+  cardConfirmed: false,
+  spyGuessSubmitted: false,
+  lastStatus: null,
+};
+
+// ════════════════════════════════════════════════
+//  PERSIST
+// ════════════════════════════════════════════════
+function save() {
+  try { localStorage.setItem('gd_fb1', JSON.stringify({
+    roomId:S.roomId, playerId:S.playerId, playerName:S.playerName, myWord:S.myWord
+  })); } catch(e) {}
+}
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem('gd_fb1')||'null');
+    if (d) { S.roomId=d.roomId||''; S.playerId=d.playerId||''; S.playerName=d.playerName||''; S.myWord=d.myWord||null; }
+  } catch(e) {}
+}
+
+// ════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════
+function genRoomCode() {
+  const c = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from({length:4}, ()=>c[Math.floor(Math.random()*c.length)]).join('');
+}
+function genId() { return Math.random().toString(36).slice(2,10); }
+function randItem(arr) { return arr[Math.floor(Math.random()*arr.length)]; }
+
+function loading(on) { document.getElementById('loading').classList.toggle('show',on); }
+let _tt;
+function toast(msg,dur=3000){
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.classList.add('show');
+  clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),dur);
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ════════════════════════════════════════════════
+//  ROUTER
+// ════════════════════════════════════════════════
+function nav(screen, params) {
+  const qs = params ? '?'+Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&') : '';
+  location.hash = screen + qs;
+}
+function parseHash() {
+  const raw = location.hash.replace(/^#/,'')||'home';
+  const [screen, qs=''] = raw.split('?');
+  const params = {};
+  if (qs) qs.split('&').forEach(p=>{ const [k,...vs]=p.split('='); if(k) params[k]=decodeURIComponent(vs.join('=')); });
+  return {screen,params};
+}
+window.addEventListener('hashchange', ()=>{
+  const {screen,params} = parseHash();
+  showScreen(screen);
+  if (screen==='join' && params.room) { const el=document.getElementById('join-code'); if(el) el.value=params.room; }
+});
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  (document.getElementById('screen-'+name)||document.getElementById('screen-home')).classList.add('active');
+  window.scrollTo(0,0);
+}
+function copyJoinLink() {
+  const link = location.href.split('#')[0]+'#join?room='+S.roomId;
+  navigator.clipboard ? navigator.clipboard.writeText(link).then(()=>toast('✓ Đã copy link mời!'))
+                      : prompt('Copy link:',link);
+}
+
+// ════════════════════════════════════════════════
+//  FIREBASE HELPERS
+// ════════════════════════════════════════════════
+function roomRef(id)   { return ref(db, `rooms/${id||S.roomId}`); }
+function playerRef(rid, pid) { return ref(db, `rooms/${rid}/players/${pid}`); }
+
+async function getRoom(roomId) {
+  const snap = await get(roomRef(roomId||S.roomId));
+  return snap.exists() ? snap.val() : null;
+}
+
+// ════════════════════════════════════════════════
+//  REALTIME LISTENER
+// ════════════════════════════════════════════════
+function listenRoom(roomId) {
+  stopListening();
+  const r = ref(db, `rooms/${roomId}`);
+  const unsub = onValue(r, snap => {
+    if (!snap.exists()) { toast('Phòng không tồn tại.'); doLeave(); return; }
+    const room = snap.val();
+    // Normalize players từ object → array
+    room.playerList = room.players ? Object.values(room.players) : [];
+    handleRoomUpdate(room);
+  });
+  S.roomListener = () => off(r, 'value', unsub);
+}
+function stopListening() {
+  if (S.roomListener) { S.roomListener(); S.roomListener = null; }
+}
+
+// ════════════════════════════════════════════════
+//  ROOM UPDATE HANDLER
+// ════════════════════════════════════════════════
+function handleRoomUpdate(room) {
+  const status = room.status;
+  const cur    = parseHash().screen;
+
+  if (status === 'waiting') {
+    if (cur !== 'lobby') nav('lobby', {room:S.roomId});
+    renderLobby(room);
+    return;
+  }
+
+  if (status === 'playing') {
+    // Từ khoá được lưu trong private node, chỉ mình đọc được
+    if (!S.myWord) fetchMyWord(room);
+    if (cur !== 'card') showCardScreen(room);
+    else updateCardConfirmCount(room);
+    return;
+  }
+
+  if (status === 'discussing') {
+    if (cur !== 'discussion') startDiscussionScreen(room);
+    return;
+  }
+
+  if (status === 'voting') {
+    if (cur !== 'vote') {
+      S.votedThisRound = false;
+      renderVote(room);
+      nav('vote', {room:S.roomId});
+    } else {
+      updateVoteStatus(room);
+    }
+    return;
+  }
+
+  if (status === 'spyguess') {
+    if (cur !== 'spyguess') showSpyGuess(room);
+    return;
+  }
+
+  if (status === 'result') {
+    if (cur !== 'result') showResult(room);
+    return;
+  }
+}
+
+// ════════════════════════════════════════════════
+//  PRIVATE WORD — lưu ở /words/{roomId}/{playerId}
+//  chỉ có người đó đọc được (Firebase rules)
+// ════════════════════════════════════════════════
+async function fetchMyWord(room) {
+  // Từ khoá được lưu tạm trong localStorage khi round bắt đầu
+  // (người tạo round write vào /words/ trước)
+  const saved = S.myWord;
+  if (saved) { updateWordDisplay(); return; }
+
+  // Fallback: đọc từ /words/{roomId}/{playerId}
+  try {
+    const snap = await get(ref(db, `words/${S.roomId}/${S.playerId}`));
+    if (snap.exists()) {
+      S.myWord = snap.val();
+      save();
+      updateWordDisplay();
+      showCardScreen(room);
+    }
+  } catch(e) {}
+}
+
+function updateWordDisplay() {
+  const el = document.getElementById('cf-word');
+  if (el && S.myWord) el.textContent = S.myWord;
+  const el2 = document.getElementById('disc-my-word');
+  if (el2 && S.myWord) el2.textContent = S.myWord;
+}
+
+// ════════════════════════════════════════════════
+//  CREATE ROOM
+// ════════════════════════════════════════════════
+window.doCreateRoom = async function() {
+  const name = document.getElementById('create-name').value.trim();
+  if (!name) { toast('Hãy nhập tên của bạn!'); return; }
+
+  loading(true);
+  try {
+    let roomId, exists;
+    do { roomId = genRoomCode(); exists = (await get(roomRef(roomId))).exists(); } while(exists);
+
+    const playerId = genId();
+    S.roomId = roomId; S.playerId = playerId; S.playerName = name; S.myWord = null;
+    save();
+
+    const room = {
+      id: roomId,
+      createdAt: Date.now(),
+      status: 'waiting',
+      hostId: playerId,
+      roundNumber: 0,
+      players: {
+        [playerId]: { id:playerId, name, ready:false, score:0, isBot:false, cardConfirmed:false }
+      }
+    };
+
+    await set(roomRef(roomId), room);
+    listenRoom(roomId);
+    nav('lobby', {room:roomId});
+  } catch(e) { toast('❌ Lỗi: '+e.message); console.error(e); }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  JOIN ROOM
+// ════════════════════════════════════════════════
+window.doJoinRoom = async function() {
+  const code = document.getElementById('join-code').value.trim().toUpperCase();
+  const name = document.getElementById('join-name').value.trim();
+  if (!code||code.length!==4) { toast('Nhập mã 4 ký tự!'); return; }
+  if (!name) { toast('Hãy nhập tên!'); return; }
+
+  loading(true);
+  try {
+    const room = await getRoom(code);
+    if (!room) { toast('Không tìm thấy phòng!'); return; }
+    if (room.status !== 'waiting') { toast('Game đã bắt đầu rồi!'); return; }
+    const players = Object.values(room.players||{});
+    if (players.length >= 8) { toast('Phòng đầy (8 người)!'); return; }
+    if (players.some(p=>p.name.toLowerCase()===name.toLowerCase())) {
+      toast('Tên đã có người dùng!'); return;
+    }
+
+    const playerId = genId();
+    S.roomId = code; S.playerId = playerId; S.playerName = name; S.myWord = null;
+    save();
+
+    await set(playerRef(code, playerId), {
+      id:playerId, name, ready:false, score:0, isBot:false, cardConfirmed:false
+    });
+
+    listenRoom(code);
+    nav('lobby', {room:code});
+  } catch(e) { toast('❌ '+e.message); }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  LOBBY RENDER
+// ════════════════════════════════════════════════
+function renderLobby(room) {
+  const players = room.playerList || Object.values(room.players||{});
+  document.getElementById('lobby-code').textContent  = room.id;
+  document.getElementById('lobby-count').textContent = players.length;
+
+  const me       = players.find(p=>p.id===S.playerId);
+  const iAmReady = me?.ready||false;
+  const isHost   = room.hostId===S.playerId;
+  const botCount = players.filter(p=>p.isBot).length;
+
+  document.getElementById('lobby-player-list').innerHTML = players.map(p => {
+    const b=[];
+    if(p.id===room.hostId) b.push('<span class="pbadge host-badge">HOST</span>');
+    if(p.isBot)            b.push('<span class="pbadge bot-badge">🤖 BOT</span>');
+    if(p.id===S.playerId)  b.push('<span class="pbadge you-badge">BẠN</span>');
+    b.push(p.ready ? '<span class="pbadge ready-badge">✓ SẴN SÀNG</span>'
+                   : '<span class="pbadge wait-badge">CHỜ...</span>');
+    return `<div class="player-row${p.isBot?' bot-row':''}">
+      <span class="pname">${esc(p.name)}</span>
+      <span style="display:flex;gap:5px">${b.join('')}</span>
+    </div>`;
+  }).join('');
+
+  const btn = document.getElementById('btn-ready');
+  if (iAmReady) { btn.textContent='✕ HỦY SẴN SÀNG'; btn.className='btn full red'; btn.style.maxWidth='320px'; }
+  else          { btn.textContent='✓ SẴN SÀNG';      btn.className='btn full green';btn.style.maxWidth='320px'; }
+
+  document.getElementById('bot-buttons').classList.toggle('hidden', !isHost);
+  document.getElementById('btn-remove-bot').classList.toggle('hidden', !(isHost&&botCount>0));
+
+  const readyCount = players.filter(p=>p.ready).length;
+  const st = document.getElementById('lobby-status-text');
+  if (players.length<3)              { st.textContent=`Cần ít nhất 3 người (hiện có ${players.length})`; st.className='muted dots'; }
+  else if (readyCount<players.length){ st.textContent=`${readyCount}/${players.length} đã sẵn sàng...`; st.className='muted dots'; }
+  else                               { st.textContent='Tất cả sẵn sàng! Đang bắt đầu...'; st.className='muted'; }
+}
+
+// ════════════════════════════════════════════════
+//  TOGGLE READY
+// ════════════════════════════════════════════════
+window.doToggleReady = async function() {
+  loading(true);
+  try {
+    // Transaction để tránh race condition
+    await runTransaction(roomRef(), room => {
+      if (!room) return room;
+      if (!room.players?.[S.playerId]) return room;
+      const me = room.players[S.playerId];
+      me.ready = !me.ready;
+
+      // Check allReady
+      const players = Object.values(room.players);
+      const allReady = players.length >= 3 && players.every(p=>p.ready);
+      if (allReady) beginRoundTx(room);
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  ADD / REMOVE BOT
+// ════════════════════════════════════════════════
+window.doAddBot = async function() {
+  loading(true);
+  try {
+    await runTransaction(roomRef(), room => {
+      if (!room) return room;
+      if (room.status !== 'waiting') return room;
+      const players = Object.values(room.players||{});
+      if (players.length >= 8) { toast('Phòng đầy!'); return room; }
+
+      const botNames = ["Bot Alpha","Bot Beta","Bot Gamma","Bot Delta","Bot Epsilon","Bot Zeta"];
+      const used = players.map(p=>p.name);
+      const name = botNames.find(n=>!used.includes(n)) || ('Bot '+genId().slice(0,4));
+      const botId = 'bot_'+genId();
+      room.players[botId] = { id:botId, name, ready:true, score:0, isBot:true, cardConfirmed:false };
+
+      const allReady = Object.values(room.players).length >= 3 && Object.values(room.players).every(p=>p.ready);
+      if (allReady) beginRoundTx(room);
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); }
+  finally { loading(false); }
+};
+
+window.doRemoveBot = async function() {
+  loading(true);
+  try {
+    await runTransaction(roomRef(), room => {
+      if (!room) return room;
+      const players = Object.values(room.players||{});
+      const bot = [...players].reverse().find(p=>p.isBot);
+      if (bot) delete room.players[bot.id];
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  BEGIN ROUND — chạy trong transaction
+// ════════════════════════════════════════════════
+function beginRoundTx(room) {
+  const row      = randItem(KEYWORDS);
+  const shuffled = [...row].sort(()=>Math.random()-.5);
+  const wordA    = shuffled[0];
+  const wordB    = shuffled[1];
+  const players  = Object.values(room.players);
+  const spy      = randItem(players);
+
+  room.status         = 'playing';
+  room.roundNumber    = (room.roundNumber||0) + 1;
+  room.round = {
+    wordA, wordB,
+    spyId:          spy.id,
+    votes:          {},
+    voteCounts:     {},
+    spyGuess:       null,
+    result:         null,
+    discussStartAt: null,
+    discussDuration: 120,
+  };
+
+  // Assign words to each player (stored in room for transaction, then moved to /words/)
+  // We store word assignments here temporarily — listener will pick it up
+  room._wordAssignments = {};
+  players.forEach(p => {
+    room._wordAssignments[p.id] = (p.id === spy.id) ? wordB : wordA;
+    p.cardConfirmed = !!p.isBot;
+    p.ready = false;
+    p.eliminated = false;
+  });
+
+  const allConfirmed = players.every(p=>p.cardConfirmed);
+  if (allConfirmed) {
+    room.status = 'discussing';
+    room.round.discussStartAt = Date.now();
+    delete room._wordAssignments;
+  }
+  return room;
+}
+
+// ════════════════════════════════════════════════
+//  AFTER ROUND STARTS — move word assignments to private /words/
+// ════════════════════════════════════════════════
+// The realtime listener picks up _wordAssignments, extracts our word, saves local
+// then a cleanup pass removes _wordAssignments from DB
+let _wordPickedUp = false;
+
+function tryPickUpWord(room) {
+  if (_wordPickedUp || !room._wordAssignments) return;
+  const myWord = room._wordAssignments[S.playerId];
+  if (myWord) {
+    _wordPickedUp = true;
+    S.myWord = myWord;
+    save();
+    updateWordDisplay();
+    // Clean up _wordAssignments after all players have picked up
+    // (host does cleanup after a short delay)
+    if (room.hostId === S.playerId) {
+      setTimeout(async () => {
+        try { await update(roomRef(), { _wordAssignments: null }); } catch(e){}
+      }, 3000);
+    }
+  }
+}
+
+// Override handleRoomUpdate to also try picking up word
+const _origHandler = handleRoomUpdate;
+function handleRoomUpdate(room) {
+  tryPickUpWord(room);
+  // Reset on new round
+  if (room.status === 'playing' && room.roundNumber !== S._lastRound) {
+    S._lastRound = room.roundNumber;
+    S.cardFlipped = false;
+    S.cardConfirmed = false;
+    S.votedThisRound = false;
+    S.spyGuessSubmitted = false;
+    _wordPickedUp = false;
+  }
+  _origHandler(room);
+}
+
+// ════════════════════════════════════════════════
+//  CARD SCREEN
+// ════════════════════════════════════════════════
+function showCardScreen(room) {
+  const el = document.getElementById('cf-word');
+  if (el) el.textContent = S.myWord || '...';
+  updateCardConfirmCount(room);
+  document.getElementById('card-wrap').classList.remove('flipped');
+  document.getElementById('btn-confirm-card').disabled = true;
+  document.getElementById('btn-confirm-card').textContent = 'ĐÃ GHI NHỚ ✓';
+  document.getElementById('card-waiting-others').style.display = 'none';
+  nav('card', {room:S.roomId});
+}
+
+function updateCardConfirmCount(room) {
+  const players = room.playerList || Object.values(room.players||{});
+  const humans    = players.filter(p=>!p.isBot);
+  const confirmed = humans.filter(p=>p.cardConfirmed).length;
+  const el = document.getElementById('card-confirm-count');
+  if (el) el.textContent = `${confirmed}/${humans.length} người đã xem xong`;
+}
+
+window.flipCard = function() {
+  if (!S.cardFlipped) {
+    S.cardFlipped = true;
+    document.getElementById('card-wrap').classList.add('flipped');
+    document.getElementById('btn-confirm-card').disabled = false;
+    updateWordDisplay();
+  }
+};
+
+window.doConfirmCard = async function() {
+  if (!S.cardFlipped) { toast('Hãy lật thẻ trước!'); return; }
+  S.cardConfirmed = true;
+  document.getElementById('btn-confirm-card').disabled = true;
+  document.getElementById('btn-confirm-card').textContent = '✓ ĐÃ GHI NHỚ';
+  document.getElementById('card-waiting-others').style.display = 'block';
+
+  await runTransaction(roomRef(), room => {
+    if (!room?.players?.[S.playerId]) return room;
+    room.players[S.playerId].cardConfirmed = true;
+    const players = Object.values(room.players);
+    const allConfirmed = players.every(p=>p.cardConfirmed);
+    if (allConfirmed) {
+      room.status = 'discussing';
+      room.round.discussStartAt = Date.now();
+    }
+    return room;
+  });
+};
+
+// ════════════════════════════════════════════════
+//  DISCUSSION + TIMER
+// ════════════════════════════════════════════════
+function startDiscussionScreen(room) {
+  if (parseHash().screen === 'discussion' && S.timerRunning) return;
+  document.getElementById('disc-round').textContent   = 'VÒNG '+(room.roundNumber||1);
+  document.getElementById('disc-players').textContent = (room.playerList?.length||Object.keys(room.players||{}).length)+' người';
+  document.getElementById('disc-my-word').textContent = S.myWord||'—';
+
+  const startAt  = room.round?.discussStartAt || Date.now();
+  const duration = room.round?.discussDuration || 120;
+  S.timerRemaining = Math.max(0, duration - Math.floor((Date.now()-startAt)/1000));
+
+  if (S.timerInterval) clearInterval(S.timerInterval);
+  S.timerRunning = true;
+  updateTimerDisplay();
+  S.timerInterval = setInterval(()=>{
+    S.timerRemaining = Math.max(0, S.timerRemaining-1);
+    updateTimerDisplay();
+    if (S.timerRemaining === 0) {
+      clearInterval(S.timerInterval); S.timerRunning = false;
+      doStartVoting();
+    }
+  }, 1000);
+  nav('discussion', {room:S.roomId});
+}
+
+function updateTimerDisplay() {
+  const m=Math.floor(S.timerRemaining/60), s=S.timerRemaining%60;
+  const el=document.getElementById('timer-display');
+  el.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  el.className='timer-big'+(S.timerRemaining<=30&&S.timerRemaining>0?' urgent':'');
+}
+
+window.doStartVoting = async function() {
+  if (S.timerInterval) clearInterval(S.timerInterval);
+  S.timerRunning = false;
+  loading(true);
+  try {
+    await runTransaction(roomRef(), room => {
+      if (!room || room.status !== 'discussing') return room;
+      room.status = 'voting';
+      room.round.votes = {};
+      // Bots vote ngẫu nhiên
+      const players = Object.values(room.players||{});
+      players.filter(p=>p.isBot&&!p.eliminated).forEach(bot => {
+        const others = players.filter(p=>p.id!==bot.id&&!p.eliminated);
+        if (others.length) room.round.votes[bot.id] = randItem(others).id;
+      });
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  VOTE
+// ════════════════════════════════════════════════
+function renderVote(room) {
+  S.selectedVote = null;
+  document.getElementById('btn-confirm-vote').disabled = true;
+  document.getElementById('vote-waiting').style.display = 'none';
+  const grid = document.getElementById('vote-grid');
+  grid.innerHTML = '';
+  const players = room.playerList || Object.values(room.players||{});
+  players.filter(p=>!p.eliminated).forEach(p => {
+    const btn = document.createElement('button');
+    btn.className = 'vote-opt';
+    btn.textContent = (p.isBot?'🤖 ':'')+p.name+(p.id===S.playerId?' (bạn)':'');
+    btn.onclick = () => {
+      document.querySelectorAll('.vote-opt').forEach(b=>b.classList.remove('sel'));
+      btn.classList.add('sel'); S.selectedVote = p.id;
+      document.getElementById('btn-confirm-vote').disabled = false;
+    };
+    grid.appendChild(btn);
+  });
+  const ab = document.createElement('button');
+  ab.className = 'vote-opt abstain'; ab.textContent = 'Bỏ phiếu trắng';
+  ab.onclick = () => {
+    document.querySelectorAll('.vote-opt').forEach(b=>b.classList.remove('sel'));
+    ab.classList.add('sel'); S.selectedVote = 'abstain';
+    document.getElementById('btn-confirm-vote').disabled = false;
+  };
+  grid.appendChild(ab);
+  updateVoteStatus(room);
+}
+
+function updateVoteStatus(room) {
+  const players = room.playerList || Object.values(room.players||{});
+  const humans  = players.filter(p=>!p.isBot&&!p.eliminated);
+  const voted   = humans.filter(p=>room.round?.votes?.[p.id]).length;
+  const el = document.getElementById('vote-status-text');
+  if (el) el.textContent = `${voted}/${humans.length} người đã bỏ phiếu`;
+  if (S.votedThisRound) {
+    document.getElementById('btn-confirm-vote').disabled = true;
+    document.getElementById('vote-waiting').style.display = 'block';
+  }
+}
+
+window.doVote = async function() {
+  if (!S.selectedVote) { toast('Hãy chọn!'); return; }
+  loading(true);
+  S.votedThisRound = true;
+  try {
+    await runTransaction(roomRef(), room => {
+      if (!room || room.status !== 'voting') return room;
+      room.round.votes[S.playerId] = S.selectedVote;
+      // Check if all humans voted
+      const players = Object.values(room.players||{});
+      const humans  = players.filter(p=>!p.isBot&&!p.eliminated);
+      const allVoted = humans.every(p=>room.round.votes[p.id]);
+      if (allVoted) resolveVotesTx(room);
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); S.votedThisRound=false; }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  RESOLVE VOTES — in transaction
+// ════════════════════════════════════════════════
+function resolveVotesTx(room) {
+  const players = Object.values(room.players||{});
+  const vc = {};
+  players.forEach(p=>{ vc[p.id]=0; });
+  Object.values(room.round.votes||{}).forEach(id=>{
+    if (id&&id!=='abstain'&&vc[id]!==undefined) vc[id]++;
+  });
+
+  let maxV=0, mostId=null;
+  Object.entries(vc).forEach(([id,cnt])=>{ if(cnt>maxV){maxV=cnt;mostId=id;} });
+  room.round.voteCounts  = vc;
+  room.round.mostVotedId = mostId;
+
+  if (!mostId||maxV===0) {
+    // Hoà — vòng thảo luận mới
+    room.status = 'discussing';
+    room.round.discussStartAt  = Date.now();
+    room.round.discussDuration = 120;
+    room.round.votes = {};
+    room.round.voteCounts = {};
+    return;
+  }
+
+  const eliminated = room.players[mostId];
+  room.round.eliminatedId   = mostId;
+  room.round.eliminatedName = eliminated?.name||'?';
+  if (eliminated) eliminated.eliminated = true;
+
+  if (mostId === room.round.spyId) {
+    // Bắt đúng gián điệp
+    const spy = room.players[room.round.spyId];
+    if (spy?.isBot) {
+      // Bot spy → tự thua ngay
+      room.round.spyGuess = '???';
+      room.round.result   = 'villagers';
+      players.filter(p=>!p.isBot&&p.id!==room.round.spyId).forEach(p=>{ p.score=(p.score||0)+1; });
+      room.status = 'result';
+    } else {
+      room.status = 'spyguess';
+    }
+  } else {
+    // Loại nhầm — gián điệp thắng nếu còn ≤1 dân thường
+    const active   = players.filter(p=>!p.eliminated);
+    const villagers = active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
+    const spy       = room.players[room.round.spyId];
+    if (villagers.length <= 1) {
+      room.round.result = 'spy';
+      room.status       = 'result';
+      if (spy) spy.score = (spy.score||0)+2;
+    } else {
+      // Tiếp tục thảo luận
+      room.status = 'discussing';
+      room.round.discussStartAt  = Date.now();
+      room.round.discussDuration = 120;
+      room.round.votes = {};
+      room.round.voteCounts = {};
+    }
+  }
+}
+
+// ════════════════════════════════════════════════
+//  SPY GUESS
+// ════════════════════════════════════════════════
+function showSpyGuess(room) {
+  const players = room.playerList || Object.values(room.players||{});
+  const spy = players.find(p=>p.id===room.round.spyId);
+  document.getElementById('sg-spy-name').textContent = (spy?.isBot?'🤖 ':'')+(spy?.name||'Gián Điệp');
+  const iAmSpy = room.round.spyId === S.playerId;
+  document.getElementById('sg-input-area').style.display = iAmSpy ? 'flex' : 'none';
+  document.getElementById('sg-waiting').style.display    = iAmSpy ? 'none' : 'block';
+  document.getElementById('sg-input').value = '';
+  S.spyGuessSubmitted = false;
+  nav('spyguess', {room:S.roomId});
+}
+
+window.doSpyGuess = async function() {
+  const guess = document.getElementById('sg-input').value.trim();
+  if (!guess) { toast('Nhập đáp án!'); return; }
+  if (S.spyGuessSubmitted) return;
+  S.spyGuessSubmitted = true;
+  loading(true);
+  try {
+    await runTransaction(roomRef(), room => {
+      if (!room || room.status !== 'spyguess') return room;
+      if (room.round.spyId !== S.playerId) return room;
+
+      const ans     = room.round.wordA.toLowerCase();
+      const g       = guess.trim().toLowerCase();
+      const correct = g===ans || ans.includes(g) || g.includes(ans);
+      const players = Object.values(room.players||{});
+
+      room.round.spyGuess = guess;
+      if (correct) {
+        room.round.result = 'spy';
+        const spy = room.players[room.round.spyId];
+        if (spy) spy.score = (spy.score||0)+3;
+      } else {
+        room.round.result = 'villagers';
+        players.filter(p=>p.id!==room.round.spyId).forEach(p=>{ p.score=(p.score||0)+1; });
+      }
+      room.status = 'result';
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); S.spyGuessSubmitted=false; }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  RESULT
+// ════════════════════════════════════════════════
+function showResult(room) {
+  const rd     = room.round;
+  const players = room.playerList || Object.values(room.players||{});
+  const isWin  = rd.result === 'villagers';
+  document.getElementById('result-banner').textContent = isWin?'🎉 DÂN THƯỜNG THẮNG!':'🕵️ GIÁN ĐIỆP THẮNG!';
+  document.getElementById('result-banner').className   = 'result-banner '+(isWin?'win':'lose');
+  document.getElementById('res-word-a').textContent = rd.wordA||'—';
+  document.getElementById('res-word-b').textContent = rd.wordB||'—';
+  const spy = players.find(p=>p.id===rd.spyId);
+  document.getElementById('res-spy').textContent = (spy?.isBot?'🤖 ':'')+(spy?.name||'—');
+
+  const vc   = rd.voteCounts||{};
+  const maxV = Math.max(1,...Object.values(vc).map(Number));
+  document.getElementById('res-votes').innerHTML = players.map(p=>`
+    <div class="vr-row">
+      <div style="flex:1">
+        <div>${p.isBot?'🤖 ':''}${esc(p.name)}${p.id===rd.spyId?' 🕵️':''}${p.eliminated?' ❌':''}</div>
+        <div class="vr-bar" style="width:${((vc[p.id]||0)/maxV)*100}%"></div>
+      </div>
+      <div class="vr-count">${vc[p.id]||0}</div>
+    </div>`).join('');
+
+  document.getElementById('res-scores').innerHTML = [...players].sort((a,b)=>(b.score||0)-(a.score||0)).map(p=>`
+    <tr>
+      <td>${p.isBot?'🤖 ':''}${esc(p.name)}${p.id===S.playerId?' <span style="color:var(--green);font-size:.75em">(bạn)</span>':''}</td>
+      <td>${p.score||0} điểm</td>
+    </tr>`).join('');
+
+  document.getElementById('btn-next-round').style.display = room.hostId===S.playerId?'inline-flex':'none';
+  nav('result', {room:S.roomId});
+}
+
+// ════════════════════════════════════════════════
+//  NEXT ROUND
+// ════════════════════════════════════════════════
+window.doNextRound = async function() {
+  loading(true);
+  try {
+    await runTransaction(roomRef(), room => {
+      if (!room||room.status!=='result') return room;
+      room.status = 'waiting';
+      S.myWord = null; _wordPickedUp = false; save();
+      Object.values(room.players||{}).forEach(p=>{
+        p.ready         = !!p.isBot;
+        p.eliminated    = false;
+        p.cardConfirmed = false;
+      });
+      // Reset round data (keep scores)
+      room.round = { votes:{}, voteCounts:{}, spyGuess:null, result:null };
+      return room;
+    });
+  } catch(e) { toast('Lỗi: '+e.message); }
+  finally { loading(false); }
+};
+
+// ════════════════════════════════════════════════
+//  LEAVE
+// ════════════════════════════════════════════════
+window.doLeave = async function() {
+  stopListening();
+  if (S.timerInterval) clearInterval(S.timerInterval);
+  const {roomId, playerId} = S;
+  S.roomId=''; S.playerId=''; S.myWord=null;
+  try { localStorage.removeItem('gd_fb1'); } catch(e){}
+  if (roomId && playerId) {
+    try {
+      await runTransaction(ref(db,`rooms/${roomId}`), room => {
+        if (!room) return room;
+        delete room.players?.[playerId];
+        const remaining = Object.values(room.players||{});
+        if (!remaining.length) return null; // delete room
+        if (room.hostId===playerId) room.hostId = remaining.find(p=>!p.isBot)?.id||remaining[0].id;
+        return room;
+      });
+    } catch(e){}
+  }
+  nav('home');
+};
+
+// ════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════
+load();
+const {screen:initScreen, params:initParams} = parseHash();
+showScreen(initScreen);
+if (initScreen==='join'&&initParams.room) {
+  const el=document.getElementById('join-code'); if(el) el.value=initParams.room;
+}
+if (S.roomId&&S.playerId&&!['home','create','join','rules'].includes(initScreen)) {
+  listenRoom(S.roomId);
+}
+
+// Make nav global
+window.nav       = nav;
+window.copyJoinLink = copyJoinLink;
+
+</script>
+</body>
+</html>
