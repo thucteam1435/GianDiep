@@ -6,15 +6,15 @@ import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
 //  ⚙️  CẤU HÌNH — điền vào đây
 // ════════════════════════════════════════════════
 const FIREBASE_CONFIG = {
-  apiKey:            "ĐẶT_API_KEY",
-  authDomain:        "ĐẶT_PROJECT_ID.firebaseapp.com",
-  databaseURL:       "https://ĐẶT_PROJECT_ID-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId:         "ĐẶT_PROJECT_ID",
-  storageBucket:     "ĐẶT_PROJECT_ID.appspot.com",
-  messagingSenderId: "ĐẶT_SENDER_ID",
-  appId:             "ĐẶT_APP_ID",
+  apiKey: "AIzaSyBwl9j1V_PEP_5etnhhAUR1UUU3bfpx8uI",
+  authDomain: "friendgame-63fb3.firebaseapp.com",
+  databaseURL: "https://friendgame-63fb3-default-rtdb.asia-southeast1.firebasedatabase.app",  // ← THÊM DÒNG NÀY
+  projectId: "friendgame-63fb3",
+  storageBucket: "friendgame-63fb3.firebasestorage.app",
+  messagingSenderId: "675984454167",
+  appId: "1:675984454167:web:33e0e76b154dc1c409a252"
 };
-const ANTHROPIC_API_KEY = "ĐẶT_ANTHROPIC_KEY"; // sk-ant-...
+const ANTHROPIC_API_KEY = "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"; // sk-ant-...
 
 // ════════════════════════════════════════════════
 //  FIREBASE INIT
