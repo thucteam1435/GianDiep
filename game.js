@@ -679,7 +679,14 @@ async function triggerBotHint(bot, room) {
   const isSpy=bot.id===room.round?.spyId;
   setAvatarSpeaking(bot.id,true);
   try {
-    const hint=await generateBotHint(bot.name,word,isSpy,room.round?.wordA,room.round?.wordB);
+    const hint = await generateBotHint(
+      S.roomId,
+      bot.name,
+      word,
+      isSpy,
+      room.round?.wordA,
+      room.round?.wordB
+    );
     showBubble(bot.id,hint,5000);
     // Also post to chat
     postBotChat(bot,hint);
@@ -695,23 +702,38 @@ async function triggerBotHint(bot, room) {
   setTimeout(()=>setAvatarSpeaking(bot.id,false),5500);
 }
 
-async function generateBotHint(botName, word, isSpy, wordA, wordB) {
-  const prompt=isSpy
-    ?`Bạn đang chơi game Gián Điệp. Bạn là gián điệp, từ khoá của bạn là "${word}" (từ khác với dân thường). Hãy nói 1 câu ngắn (dưới 15 từ) mô tả mơ hồ để không bị lộ. Chỉ trả lời câu đó, không giải thích.`
-    :`Bạn đang chơi game Gián Điệp. Bạn là dân thường, từ khoá của bạn là "${word}". Hãy nói 1 câu ngắn (dưới 15 từ) mô tả từ đó mà không nói thẳng tên. Chỉ trả lời câu đó, không giải thích.`;
+async function generateBotHint(roomId, botName, word, isSpy, wordA, wordB) {
 
-  const resp=await fetch('https://api.anthropic.com/v1/messages',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-api-key':ANTHROPIC_API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-    body:JSON.stringify({
-      model:'claude-haiku-4-5-20251001',
-      max_tokens:60,
-      messages:[{role:'user',content:prompt}]
-    })
-  });
-  if(!resp.ok) throw new Error('API error');
-  const data=await resp.json();
-  return data.content?.[0]?.text?.trim()||'...';
+  const chatSnap = await get(ref(db,`rooms/${roomId}/chat`));
+  let history = [];
+
+  if(chatSnap.exists()){
+    const msgs = Object.values(chatSnap.val())
+      .sort((a,b)=>a.ts-b.ts)
+      .slice(-6); // 6 tin gần nhất
+
+    history = msgs.map(m => `${m.name}: ${m.text || m.reaction}`).join("\n");
+  }
+
+  const resp = await fetch(
+    "https://script.google.com/macros/s/AKfycbwGIEPcU-0fKLu4W64MpHelor_fggMUevZVQ_2cSXl5NnCdIG0dKwksrPYwgWOvN7bf9g/exec",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roomId,
+        botName,
+        word,
+        isSpy,
+        wordA,
+        wordB,
+        history
+      })
+    }
+  );
+
+  const data = await resp.json();
+  return data.text?.trim() || "...";
 }
 
 // ════════════════════════════════════════════════
