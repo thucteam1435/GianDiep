@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
+import { getDatabase, ref, set, get, update, onValue, off, runTransaction, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ════════════════════════════════════════════════
@@ -381,7 +381,9 @@ function beginRoundTx(room,keywords) {
     p.cardConfirmed=!!p.isBot; p.ready=false; p.eliminated=false;
   });
   if(players.every(p=>p.cardConfirmed)){
-    room.status='discussing'; room.round.discussStartAt=Date.now(); delete room._wordAssignments;
+    room.status='discussing';
+    room.round.discussStartAt = serverTimestamp();
+    delete room._wordAssignments;
   }
   return room;
 }
@@ -416,7 +418,8 @@ async function doConfirmCard() {
     if(!room?.players?.[S.playerId]) return room;
     room.players[S.playerId].cardConfirmed=true;
     if(Object.values(room.players).every(p=>p.cardConfirmed)){
-      room.status='discussing'; room.round.discussStartAt=Date.now();
+      room.status='discussing';
+      room.round.discussStartAt = serverTimestamp();
     }
     return room;
   });
@@ -446,7 +449,7 @@ function startDiscussionScreen(room) {
   document.getElementById('tb-word-display').textContent=S.myWord||'—';
 
   // Timer
-  const startAt=room.round?.discussStartAt||Date.now();
+  const startAt = room.round?.discussStartAt || 0;
   const duration=room.round?.discussDuration||45;
   S.timerRemaining=Math.max(0,duration-Math.floor((Date.now()-startAt)/1000));
   if(S.timerInterval) clearInterval(S.timerInterval);
@@ -1039,7 +1042,7 @@ async function advanceAfterSummary() {
     room.status=room.round._nextStatus||'discussing';
     delete room.round._nextStatus;
     if(room.status==='discussing'){
-      room.round.discussStartAt=Date.now();
+      room.round.discussStartAt = serverTimestamp();
       room.round.discussDuration=room.round.isTie?30:45;
       room.round.votes={}; room.round.voteCounts={}; room.round.isTie=false;
     }
