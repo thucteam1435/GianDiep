@@ -1,5 +1,5 @@
 import { initializeApp } from “https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js”;
-import { getDatabase, ref, set, get, update, onValue, off, runTransaction, serverTimestamp }
+import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
 from “https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js”;
 
 // ════════════════════════════════════════════════
@@ -14,8 +14,6 @@ storageBucket: “friendgame-63fb3.firebasestorage.app”,
 messagingSenderId: “675984454167”,
 appId: “1:675984454167:web:33e0e76b154dc1c409a252”
 };
-
-// GAS proxy — bot hints & vote
 const GAS_URL = “https://script.google.com/macros/s/AKfycbwGfPyXJcgay2MdZQI0bSezduzfJZZPVv_ZIS18gK-E2xYdLL5g5ZuoXJsCvkXpYxZb/exec”;
 
 // ════════════════════════════════════════════════
@@ -437,8 +435,7 @@ let _botHintTimers = [];
 let _lastRoom = null;
 
 function startDiscussionScreen(room) {
-const alreadyOnScreen = parseHash().screen===‘discussion’;
-// Nếu đang ở discussion và timer chạy → chỉ update UI, không restart
+const alreadyOnScreen=parseHash().screen===‘discussion’;
 if (alreadyOnScreen && S.timerRunning) return;
 
 _lastRoom = room;
@@ -469,10 +466,8 @@ if(tie) tie.style.display=room.round?.isTie?‘block’:‘none’;
 // Build table
 buildRoundTable(room);
 
-// Start chat — chỉ (re)start nếu chưa có listener hoặc màn hình mới
-if (!alreadyOnScreen || !S.chatListener) {
-startChatListener();
-}
+// Chỉ start chat khi vào màn hình mới
+if(!alreadyOnScreen||!S.chatListener) startChatListener();
 scheduleBotHints(room);
 
 // Chat collapsed initially
@@ -682,23 +677,16 @@ _botHintTimers.push(t);
 }
 
 async function triggerBotHint(bot, room) {
-// Check still in discussion
 if(parseHash().screen!==‘discussion’) return;
-// Fix: không dùng _wordAssignments (đã bị xóa khỏi Firebase sau pickup)
+// Fix: dùng wordA/B trực tiếp, không dùng _wordAssignments (đã bị xóa)
 const isSpy=bot.id===room.round?.spyId;
 const word=isSpy ? room.round?.wordB : room.round?.wordA;
 setAvatarSpeaking(bot.id,true);
 try {
-const hint=await callGAS({
-action:‘hint’,
-botName:bot.name, word, isSpy,
-wordA:room.round?.wordA, wordB:room.round?.wordB
-});
+const hint=await callGAS({action:‘hint’,botName:bot.name,word,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB});
 showBubble(bot.id,hint,5000);
-// Also post to chat
 postBotChat(bot,hint);
 } catch(e){
-// Fallback hints
 const fallbacks=isSpy?
 [‘Hmm…’,‘Tôi biết rồi…’,‘Thú vị…’,‘Có vẻ quen…’]:
 [‘Đúng rồi!’,‘Tôi hiểu từ này’,‘Khá rõ ràng’,‘Tôi chắc chắn’];
@@ -709,19 +697,13 @@ postBotChat(bot,hint);
 setTimeout(()=>setAvatarSpeaking(bot.id,false),5500);
 }
 
-// Gọi GAS proxy
 async function callGAS(payload) {
-const resp=await fetch(GAS_URL,{
-method:‘POST’,
-headers:{‘Content-Type’:‘text/plain’},
-body:JSON.stringify(payload)
-});
-if(!resp.ok) throw new Error(‘GAS error ‘+resp.status);
+const resp=await fetch(GAS_URL,{method:‘POST’,headers:{‘Content-Type’:‘text/plain’},body:JSON.stringify(payload)});
+if(!resp.ok) throw new Error(‘GAS ‘+resp.status);
 const data=await resp.json();
 return data.text?.trim()||’…’;
 }
 
-// Bot phân tích chat để chọn người vote thông minh
 async function getBotVoteTarget(bot, room) {
 const players=Object.values(room.players||{});
 const candidates=players.filter(p=>p.id!==bot.id&&!p.eliminated);
@@ -731,19 +713,14 @@ const chatSnap=await get(ref(db,`rooms/${S.roomId}/chat`));
 let chatHistory=’’;
 if(chatSnap.exists()){
 const msgs=Object.values(chatSnap.val()).sort((a,b)=>a.ts-b.ts).slice(-10);
-chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join(’\n’);
+chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join(’
+’);
 }
 const isSpy=bot.id===room.round?.spyId;
-const myWord=isSpy ? room.round?.wordB : room.round?.wordA;
-const result=await callGAS({
-action:‘vote’,
-botName:bot.name, myWord, isSpy,
-wordA:room.round?.wordA, wordB:room.round?.wordB,
-candidates:candidates.map(p=>p.name),
-chatHistory
-});
+const myWord=isSpy?room.round?.wordB:room.round?.wordA;
+const result=await callGAS({action:‘vote’,botName:bot.name,myWord,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB,candidates:candidates.map(p=>p.name),chatHistory});
 const target=candidates.find(p=>p.name===result?.trim());
-return target?.id || randItem(candidates).id;
+return target?.id||randItem(candidates).id;
 } catch(e){
 return randItem(candidates).id;
 }
@@ -760,23 +737,16 @@ const r=chatRef();
 const msgs=document.getElementById(‘chat-messages’);
 if(msgs) msgs.innerHTML=’’;
 
-// Fix: chỉ append tin mới, không render lại toàn bộ
-let _lastRenderedTs=0;
-
+let _lastTs=0;
 const unsub=onValue(r,snap=>{
 if(!snap.exists()) return;
-const allMsgs=snap.val()||{};
-const sorted=Object.values(allMsgs).sort((a,b)=>a.ts-b.ts);
-const newMsgs=sorted.filter(m=>(m.ts||0)>_lastRenderedTs);
-if(!newMsgs.length) return;
-newMsgs.forEach(m=>{
-appendChatMsg(m);
-if((m.ts||0)>_lastRenderedTs) _lastRenderedTs=m.ts;
-});
+const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
+const fresh=sorted.filter(m=>(m.ts||0)>_lastTs);
+if(!fresh.length) return;
+fresh.forEach(m=>{appendChatMsg(m);if((m.ts||0)>_lastTs)_lastTs=m.ts;});
 if(msgs) msgs.scrollTop=msgs.scrollHeight;
-// Unread badge when collapsed
 if(S.chatCollapsed){
-S.chatUnread+=newMsgs.length;
+S.chatUnread+=fresh.length;
 const badge=document.getElementById(‘chat-unread-badge’);
 if(badge){badge.textContent=S.chatUnread>9?‘9+’:S.chatUnread;badge.classList.add(‘show’);}
 }
@@ -849,43 +819,31 @@ async function doTimeUpVoting() {
 if(S.timerInterval) clearInterval(S.timerInterval);
 S.timerRunning=false;
 _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
-
-// Lấy room snapshot để bot vote thông minh dựa trên chat
+// Smart bot vote: đọc chat trước transaction
 const roomSnap=await get(roomRef()).catch(()=>null);
 const roomData=roomSnap?.val()||null;
-const players=roomData ? Object.values(roomData.players||{}) : [];
-
-try {
-// Bot smart vote — async trước transaction
 const botVotes={};
 if(roomData){
-const bots=players.filter(p=>p.isBot&&!p.eliminated);
+const bots=Object.values(roomData.players||{}).filter(p=>p.isBot&&!p.eliminated);
 await Promise.all(bots.map(async bot=>{
-const target=await getBotVoteTarget(bot,roomData);
-if(target) botVotes[bot.id]=target;
+const t=await getBotVoteTarget(bot,roomData);
+if(t) botVotes[bot.id]=t;
 }));
 }
-
-```
+try {
 await runTransaction(roomRef(),room=>{
-  if(!room||room.status!=='discussing') return room;
-  room.status='voting';
-  room.round.votes={...(room.round.earlyVotes||{})};
-  delete room.round.earlyVotes;
-  const ps=Object.values(room.players||{});
-  ps.filter(p=>p.isBot&&!p.eliminated).forEach(bot=>{
-    if(botVotes[bot.id]){
-      room.round.votes[bot.id]=botVotes[bot.id];
-    } else {
-      const others=ps.filter(p=>p.id!==bot.id&&!p.eliminated);
-      if(others.length) room.round.votes[bot.id]=randItem(others).id;
-    }
-  });
-  room.round.voteDeadline=Date.now()+10000;
-  return room;
+if(!room||room.status!==‘discussing’) return room;
+room.status=‘voting’;
+room.round.votes={…(room.round.earlyVotes||{})};
+delete room.round.earlyVotes;
+const players=Object.values(room.players||{});
+players.filter(p=>p.isBot&&!p.eliminated).forEach(bot=>{
+const others=players.filter(p=>p.id!==bot.id&&!p.eliminated);
+room.round.votes[bot.id]=botVotes[bot.id]||(others.length?randItem(others).id:null);
 });
-```
-
+room.round.voteDeadline=Date.now()+10000;
+return room;
+});
 } catch(e){console.error(e);}
 }
 
@@ -1023,11 +981,10 @@ players.filter(p=>p.id!==room.round.spyId).forEach(p=>{p.score=(p.score||0)+1;})
 room.round._nextStatus=‘result’;
 } else { room.round._nextStatus=‘spyguess’; }
 } else {
-// Tính lại active sau khi vừa eliminate mostId
 const active=players.filter(p=>!p.eliminated);
+// Chỉ đếm dân thường thật (không tính bot) khi xét điều kiện thắng
 const villagers=active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
 const spy=room.players[room.round.spyId];
-// Gián điệp thắng nếu chỉ còn <= 1 dân thường (không tính bot)
 if(villagers.length<=1){
 room.round.result=‘spy’; room.round._nextStatus=‘result’;
 if(spy) spy.score=(spy.score||0)+2;
