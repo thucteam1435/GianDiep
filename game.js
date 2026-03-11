@@ -719,7 +719,9 @@ async function generateBotHint(roomId, botName, word, isSpy, wordA, wordB) {
     "https://script.google.com/macros/s/AKfycbwGIEPcU-0fKLu4W64MpHelor_fggMUevZVQ_2cSXl5NnCdIG0dKwksrPYwgWOvN7bf9g/exec",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "text/plain"
+      },
       body: JSON.stringify({
         roomId,
         botName,
