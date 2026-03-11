@@ -14,7 +14,7 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "675984454167",
   appId: "1:675984454167:web:33e0e76b154dc1c409a252"
 };
-const ANTHROPIC_API_KEY = "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"; // sk-ant-...
+const ANTHROPIC_API_KEY = "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"; // sk-ant-...
 
 // ════════════════════════════════════════════════
 //  FIREBASE INIT
