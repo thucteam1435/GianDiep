@@ -383,7 +383,6 @@ function beginRoundTx(room,keywords) {
   if(players.every(p=>p.cardConfirmed)){
     room.status='discussing';
     room.round.discussStartAt = serverTimestamp();
-    delete room._wordAssignments;
   }
   return room;
 }
