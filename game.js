@@ -1,7 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off, runTransaction, serverTimestamp }
+import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
+// ------------------------------------------------
+//  ⚙️  CẤU HÌNH — điền vào đây
+// ------------------------------------------------
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBwl9j1V_PEP_5etnhhAUR1UUU3bfpx8uI",
   authDomain: "friendgame-63fb3.firebaseapp.com",
@@ -11,27 +14,30 @@ const FIREBASE_CONFIG = {
   messagingSenderId: "675984454167",
   appId: "1:675984454167:web:33e0e76b154dc1c409a252"
 };
-
-// GAS proxy URL cho bot hints
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwGfPyXJcgay2MdZQI0bSezduzfJZZPVv_ZIS18gK-E2xYdLL5g5ZuoXJsCvkXpYxZb/exec";
 
+// ------------------------------------------------
+//  FIREBASE INIT
+// ------------------------------------------------
 const app = initializeApp(FIREBASE_CONFIG);
 const db  = getDatabase(app);
 
-// ════ KEYWORDS ════
+// ------------------------------------------------
+//  KEYWORDS
+// ------------------------------------------------
 let _keywords = null;
 async function getKeywords() {
   if (_keywords) return _keywords;
   try {
-    const snap = await get(ref(db,'keywords'));
+    const snap = await get(ref(db, 'keywords'));
     if (snap.exists()) {
       const val = snap.val();
       _keywords = Array.isArray(val) ? val : Object.values(val);
       return _keywords;
     }
-  } catch(e) { console.warn('keywords error:',e); }
+  } catch(e) { console.warn('keywords error:', e); }
   _keywords = [
-    ["Táo","Lê","Mận","Đào"],["Cam","Quýt","Bưởi","Chanh"],
+    ["Táo","Lê","Mận","Đào"], ["Cam","Quýt","Bưởi","Chanh"],
     ["Bệnh viện","Phòng khám","Trạm y tế","Nhà thuốc"],
     ["Cà phê đen","Cà phê sữa","Cà phê latte","Capuccino"],
     ["Nhà hàng","Quán ăn","Quán cơm","Quán phở"],
@@ -40,11 +46,13 @@ async function getKeywords() {
   return _keywords;
 }
 
-// ════ STATE ════
+// ------------------------------------------------
+//  STATE
+// ------------------------------------------------
 const S = {
   roomId:'', playerId:'', playerName:'', myWord:null,
   roomListener:null, chatListener:null,
-  timerInterval:null, timerRemaining:45, timerRunning:false,
+  timerInterval:null, timerRemaining:120, timerRunning:false,
   selectedVote:null, earlyVoteChoice:null, earlyVoted:false,
   votedThisRound:false, voteTimerInterval:null,
   cardFlipped:false, cardConfirmed:false, spyGuessSubmitted:false,
@@ -53,10 +61,12 @@ const S = {
 };
 let _wordPickedUp = false;
 
-// ════ PERSIST ════
+// ------------------------------------------------
+//  PERSIST
+// ------------------------------------------------
 function save() {
   try { localStorage.setItem('gd_fb1', JSON.stringify(
-    {roomId:S.roomId,playerId:S.playerId,playerName:S.playerName,myWord:S.myWord}
+    {roomId:S.roomId, playerId:S.playerId, playerName:S.playerName, myWord:S.myWord}
   )); } catch(e) {}
 }
 function load() {
@@ -66,7 +76,9 @@ function load() {
   } catch(e) {}
 }
 
-// ════ HELPERS ════
+// ------------------------------------------------
+//  HELPERS
+// ------------------------------------------------
 function genRoomCode() {
   const c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');
@@ -82,7 +94,9 @@ function toast(msg,dur=3000){
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ════ ROUTER ════
+// ------------------------------------------------
+//  ROUTER
+// ------------------------------------------------
 function nav(screen, params) {
   const qs = params ? '?'+Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&') : '';
   location.hash = screen + qs;
@@ -110,7 +124,9 @@ function copyJoinLink() {
                       : prompt('Copy link:',link);
 }
 
-// ════ FIREBASE HELPERS ════
+// ------------------------------------------------
+//  FIREBASE HELPERS
+// ------------------------------------------------
 function roomRef(id)   { return ref(db,`rooms/${id||S.roomId}`); }
 function playerRef(rid,pid) { return ref(db,`rooms/${rid}/players/${pid}`); }
 function chatRef()     { return ref(db,`rooms/${S.roomId}/chat`); }
@@ -120,7 +136,9 @@ async function getRoom(roomId) {
   return snap.exists() ? snap.val() : null;
 }
 
-// ════ REALTIME LISTENER ════
+// ------------------------------------------------
+//  REALTIME LISTENER
+// ------------------------------------------------
 function listenRoom(roomId) {
   stopListening();
   const r = ref(db,`rooms/${roomId}`);
@@ -137,28 +155,59 @@ function stopListening() {
   if (S.chatListener) { S.chatListener(); S.chatListener=null; }
 }
 
-// ════ ROOM UPDATE HANDLER ════
+// ------------------------------------------------
+//  ROOM UPDATE HANDLER
+// ------------------------------------------------
 function handleRoomUpdate(room) {
   tryPickUpWord(room);
+
   if (room.status==='playing' && room.roundNumber!==S._lastRound) {
     S._lastRound=room.roundNumber;
     S.cardFlipped=false; S.cardConfirmed=false;
     S.votedThisRound=false; S.earlyVoted=false; S.earlyVoteChoice=null;
     S.spyGuessSubmitted=false; _wordPickedUp=false;
   }
+
   const status=room.status, cur=parseHash().screen;
-  if (status==='waiting') { if(cur!=='lobby') nav('lobby',{room:S.roomId}); renderLobby(room); return; }
-  if (status==='playing') { if(!S.myWord) fetchMyWord(room); if(cur!=='card') showCardScreen(room); else updateCardConfirmCount(room); return; }
-  if (status==='discussing') { if(cur!=='discussion') startDiscussionScreen(room); else { updateTableAvatars(room); updateDiscVoteStatus(room); } return; }
-  if (status==='voting') { if(cur!=='vote') { S.votedThisRound=false; renderVote(room); nav('vote',{room:S.roomId}); startVoteTimer(room); } else updateVoteStatus(room); return; }
-  if (status==='votesummary') { if(cur!=='votesummary') showVoteSummary(room); return; }
-  if (status==='spyguess') { if(cur!=='spyguess') showSpyGuess(room); return; }
-  if (status==='result') { if(cur!=='result') showResult(room); return; }
+
+  if (status==='waiting') {
+    if (cur!=='lobby') nav('lobby',{room:S.roomId});
+    renderLobby(room); return;
+  }
+  if (status==='playing') {
+    if (!S.myWord) fetchMyWord(room);
+    if (cur!=='card') showCardScreen(room); else updateCardConfirmCount(room);
+    return;
+  }
+  if (status==='discussing') {
+    if (cur!=='discussion') { startDiscussionScreen(room); }
+    else { updateTableAvatars(room); updateDiscVoteStatus(room); }
+    return;
+  }
+  if (status==='voting') {
+    if (cur!=='vote') {
+      S.votedThisRound=false;
+      renderVote(room); nav('vote',{room:S.roomId}); startVoteTimer(room);
+    } else { updateVoteStatus(room); }
+    return;
+  }
+  if (status==='votesummary') {
+    if (cur!=='votesummary') showVoteSummary(room); return;
+  }
+  if (status==='spyguess') {
+    if (cur!=='spyguess') showSpyGuess(room); return;
+  }
+  if (status==='result') {
+    if (cur!=='result') showResult(room); return;
+  }
 }
 
-// ════ WORD PICKUP ════
+// ------------------------------------------------
+//  WORD PICKUP
+// ------------------------------------------------
 async function fetchMyWord(room) {
-  if (S.myWord) { updateWordDisplay(); return; }
+  const saved = S.myWord;
+  if (saved) { updateWordDisplay(); return; }
   try {
     const snap = await get(ref(db,`words/${S.roomId}/${S.playerId}`));
     if (snap.exists()) { S.myWord=snap.val(); save(); updateWordDisplay(); showCardScreen(room); }
@@ -176,7 +225,7 @@ function tryPickUpWord(room) {
     update(ref(db),{[`rooms/${S.roomId}/_wordAssignments/${S.playerId}`]:null}).catch(()=>{});
     if (room.hostId===S.playerId) {
       const rem=Object.keys(room._wordAssignments).filter(id=>id!==S.playerId);
-      if (!rem.length) update(ref(db),{[`rooms/${S.roomId}/_wordAssignments`]:null}).catch(()=>{});
+      if (!rem.length) { update(ref(db),{[`rooms/${S.roomId}/_wordAssignments`]:null}).catch(()=>{}); }
       else setTimeout(async()=>{
         try {
           const snap=await get(ref(db,`rooms/${S.roomId}/_wordAssignments`));
@@ -188,7 +237,9 @@ function tryPickUpWord(room) {
   },0);
 }
 
-// ════ CLEAN OLD ROOMS ════
+// ------------------------------------------------
+//  CLEAN OLD ROOMS
+// ------------------------------------------------
 async function cleanOldRooms() {
   try {
     const snap=await get(ref(db,'rooms')); if(!snap.exists()) return;
@@ -198,7 +249,9 @@ async function cleanOldRooms() {
   } catch(e){}
 }
 
-// ════ CREATE / JOIN ════
+// ------------------------------------------------
+//  CREATE / JOIN
+// ------------------------------------------------
 async function doCreateRoom() {
   const name=document.getElementById('create-name').value.trim();
   if (!name) { toast('Hãy nhập tên!'); return; }
@@ -238,7 +291,9 @@ async function doJoinRoom() {
   finally{loading(false);}
 }
 
-// ════ LOBBY ════
+// ------------------------------------------------
+//  LOBBY
+// ------------------------------------------------
 function renderLobby(room) {
   const players=room.playerList||Object.values(room.players||{});
   document.getElementById('lobby-code').textContent=room.id;
@@ -311,25 +366,29 @@ async function doRemoveBot() {
   finally{loading(false);}
 }
 
-// ════ BEGIN ROUND ════
+// ------------------------------------------------
+//  BEGIN ROUND
+// ------------------------------------------------
 function beginRoundTx(room,keywords) {
   const row=randItem(keywords), shuffled=[...row].sort(()=>Math.random()-.5);
   const wordA=shuffled[0], wordB=shuffled[1];
   const players=Object.values(room.players), spy=randItem(players);
   room.status='playing'; room.roundNumber=(room.roundNumber||0)+1;
-  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:45};
+  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:120};
   room._wordAssignments={};
   players.forEach(p=>{
     room._wordAssignments[p.id]=(p.id===spy.id)?wordB:wordA;
     p.cardConfirmed=!!p.isBot; p.ready=false; p.eliminated=false;
   });
   if(players.every(p=>p.cardConfirmed)){
-    room.status='discussing'; room.round.discussStartAt=serverTimestamp(); delete room._wordAssignments;
+    room.status='discussing'; room.round.discussStartAt=Date.now(); delete room._wordAssignments;
   }
   return room;
 }
 
-// ════ CARD ════
+// ------------------------------------------------
+//  CARD
+// ------------------------------------------------
 function showCardScreen(room) {
   const el=document.getElementById('cf-word'); if(el) el.textContent=S.myWord||'...';
   updateCardConfirmCount(room);
@@ -357,27 +416,39 @@ async function doConfirmCard() {
     if(!room?.players?.[S.playerId]) return room;
     room.players[S.playerId].cardConfirmed=true;
     if(Object.values(room.players).every(p=>p.cardConfirmed)){
-      room.status='discussing'; room.round.discussStartAt=serverTimestamp();
+      room.status='discussing'; room.round.discussStartAt=Date.now();
     }
     return room;
   });
 }
 
-// ════ ROUND TABLE ════
+// ------------------------------------------------
+//  -------  ------- ---   -------   ----------
+//  --------------------   --------  -----------
+//  -----------   ------   --------- ------  ---
+//  -----------   ------   ----------------  ---
+//  ---  ------------------------ --------------
+//  TABLE SCREEN  (replaces discussion screen)
+// ------------------------------------------------
+
 let _botHintTimers = [];
 let _lastRoom = null;
 
 function startDiscussionScreen(room) {
-  if (parseHash().screen==='discussion' && S.timerRunning) return;
+  const alreadyOnScreen=parseHash().screen==='discussion';
+  if (alreadyOnScreen && S.timerRunning) return;
+
   _lastRoom = room;
   S.earlyVoteChoice=null;
   S.earlyVoted=!!(room.round?.earlyVotes?.[S.playerId]);
 
+  // Top bar
   document.getElementById('tb-round-badge').textContent='VÒNG '+(room.roundNumber||1);
   document.getElementById('tb-word-display').textContent=S.myWord||'—';
 
-  const startAt = room.round?.discussStartAt || 0;
-  const duration = room.round?.discussDuration || 45;
+  // Timer
+  const startAt=room.round?.discussStartAt||Date.now();
+  const duration=room.round?.discussDuration||120;
   S.timerRemaining=Math.max(0,duration-Math.floor((Date.now()-startAt)/1000));
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=true;
@@ -388,14 +459,20 @@ function startDiscussionScreen(room) {
     if(S.timerRemaining===0){clearInterval(S.timerInterval);S.timerRunning=false;doTimeUpVoting();}
   },1000);
 
+  // Tie notice
   const tie=document.getElementById('table-tie-banner');
   if(tie) tie.style.display=room.round?.isTie?'block':'none';
 
+  // Build table
   buildRoundTable(room);
-  startChatListener();
+
+  // Chỉ start chat khi vào màn hình mới
+  if(!alreadyOnScreen||!S.chatListener) startChatListener();
   scheduleBotHints(room);
 
-  S.chatCollapsed=true; S.chatUnread=0;
+  // Chat collapsed initially
+  S.chatCollapsed=true;
+  S.chatUnread=0;
   document.querySelector('.chat-panel')?.classList.add('collapsed');
   document.getElementById('chat-unread-badge').classList.remove('show');
 
@@ -410,27 +487,40 @@ function updateTableTimer() {
   el.classList.toggle('urgent',S.timerRemaining<=30&&S.timerRemaining>0);
 }
 
+// -- Build round table layout --
 function buildRoundTable(room) {
   const players=room.playerList||Object.values(room.players||{});
   const n=players.length;
   const tableEl=document.getElementById('round-table');
   if(!tableEl) return;
+
+  // Remove old player nodes
   tableEl.querySelectorAll('.table-player').forEach(el=>el.remove());
+
   const size=tableEl.offsetWidth||300;
   const cx=size/2, cy=size/2, r=size*0.42;
+
   players.forEach((p,i)=>{
     const angle=(2*Math.PI*i/n)-Math.PI/2;
-    const x=cx+r*Math.cos(angle), y=cy+r*Math.sin(angle);
+    const x=cx+r*Math.cos(angle);
+    const y=cy+r*Math.sin(angle);
+
     const wrap=document.createElement('div');
-    wrap.className='table-player'; wrap.id=`tp-${p.id}`;
-    wrap.style.left=x+'px'; wrap.style.top=y+'px';
+    wrap.className='table-player';
+    wrap.id=`tp-${p.id}`;
+    wrap.style.left=x+'px';
+    wrap.style.top=y+'px';
+
+    // Determine bubble arrow direction based on position
     const sector=Math.atan2(y-cy,x-cx);
     const arrDir=sector>-Math.PI/4&&sector<Math.PI/4?'arr-right':
                  sector>=Math.PI/4&&sector<3*Math.PI/4?'arr-down':
                  sector<=-Math.PI/4&&sector>-3*Math.PI/4?'arr-up':'arr-left';
+
     const isMe=p.id===S.playerId;
     const emoji=p.isBot?'🤖':(isMe?'😊':['👤','🧑','👩','🙂','😐','🧐'][i%6]);
     const hasVoted=!!(room.round?.earlyVotes?.[p.id]||room.round?.votes?.[p.id]);
+
     wrap.innerHTML=`
       <div class="speech-bubble ${arrDir}" id="bubble-${p.id}"></div>
       <div class="avatar${isMe?' is-me':''}${p.eliminated?' eliminated':''}" id="avatar-${p.id}">
@@ -438,10 +528,15 @@ function buildRoundTable(room) {
         <div class="avatar-voted-badge${hasVoted?' show':''}" id="voted-${p.id}">✓</div>
         ${p.eliminated?'<div class="avatar-elim-badge">✕</div>':''}
       </div>
-      <div class="avatar-name${isMe?' is-me':''}">${esc(p.name)}</div>`;
+      <div class="avatar-name${isMe?' is-me':''}">${esc(p.name)}</div>
+    `;
     tableEl.appendChild(wrap);
   });
-  document.getElementById('table-center-text').textContent=`${players.filter(p=>!p.eliminated).length} người`;
+
+  // Update center text
+  const active=players.filter(p=>!p.eliminated).length;
+  document.getElementById('table-center-text').textContent=`${active} người`;
+
   updateDiscVoteStatus(room);
 }
 
@@ -464,6 +559,7 @@ function updateTableAvatars(room) {
   updateDiscVoteStatus(room);
 }
 
+// -- Vote status below table --
 function updateDiscVoteStatus(room) {
   if(!room) return;
   const players=room.playerList||Object.values(room.players||{});
@@ -471,10 +567,15 @@ function updateDiscVoteStatus(room) {
   const voted=humans.filter(p=>room.round?.earlyVotes?.[p.id]||room.round?.votes?.[p.id]).length;
   const el=document.getElementById('disc-voted-count');
   if(el) el.textContent=voted===humans.length?`✓ Tất cả ${humans.length} người đã vote`:`${voted}/${humans.length} người đã gửi phiếu`;
+
+  // Show/hide early vote panel
   const me=players.find(p=>p.id===S.playerId);
   const iAmEliminated=me?.eliminated||false;
   const earlyPanel=document.getElementById('disc-early-vote-section');
-  if(earlyPanel) earlyPanel.style.display=(iAmEliminated||S.earlyVoted)?'none':'';
+  if(earlyPanel){
+    if(iAmEliminated||S.earlyVoted) earlyPanel.style.display='none';
+    else earlyPanel.style.display='';
+  }
   const votedNotice=document.getElementById('disc-voted-notice');
   if(votedNotice) votedNotice.style.display=(S.earlyVoted&&!iAmEliminated)?'block':'none';
 }
@@ -483,16 +584,27 @@ function renderDiscVoteGrid(room) {
   const players=room.playerList||Object.values(room.players||{});
   const grid=document.getElementById('disc-vote-grid');
   if(!grid) return;
-  grid.innerHTML=''; S.earlyVoteChoice=null;
-  const btn=document.getElementById('disc-btn-vote'); if(btn) btn.disabled=true;
+  grid.innerHTML='';
+  S.earlyVoteChoice=null;
+  const btn=document.getElementById('disc-btn-vote');
+  if(btn) btn.disabled=true;
+
   players.filter(p=>!p.eliminated).forEach(p=>{
-    const b=document.createElement('button'); b.className='vote-opt';
+    const b=document.createElement('button');
+    b.className='vote-opt';
     b.textContent=(p.isBot?'🤖 ':'')+p.name+(p.id===S.playerId?' (bạn)':'');
-    b.onclick=()=>{grid.querySelectorAll('.vote-opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');S.earlyVoteChoice=p.id;if(btn)btn.disabled=false;};
+    b.onclick=()=>{
+      grid.querySelectorAll('.vote-opt').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel'); S.earlyVoteChoice=p.id; if(btn) btn.disabled=false;
+    };
     grid.appendChild(b);
   });
-  const ab=document.createElement('button'); ab.className='vote-opt abstain'; ab.textContent='Bỏ phiếu trắng';
-  ab.onclick=()=>{grid.querySelectorAll('.vote-opt').forEach(x=>x.classList.remove('sel'));ab.classList.add('sel');S.earlyVoteChoice='abstain';if(btn)btn.disabled=false;};
+  const ab=document.createElement('button');
+  ab.className='vote-opt abstain'; ab.textContent='Bỏ phiếu trắng';
+  ab.onclick=()=>{
+    grid.querySelectorAll('.vote-opt').forEach(x=>x.classList.remove('sel'));
+    ab.classList.add('sel'); S.earlyVoteChoice='abstain'; if(btn) btn.disabled=false;
+  };
   grid.appendChild(ab);
 }
 
@@ -516,37 +628,44 @@ async function doEarlyVote() {
       }
       return room;
     });
+    // Show bubble for myself
     showBubble(S.playerId,'✓ Đã gửi phiếu',3000);
     updateDiscVoteStatus(_lastRoom||{round:{},players:{}});
   } catch(e){toast('Lỗi: '+e.message);console.error(e);S.earlyVoted=false;}
   finally{loading(false);}
 }
 
+// -- Show speech bubble on avatar --
 function showBubble(playerId, text, dur=4000) {
   const el=document.getElementById(`bubble-${playerId}`);
   if(!el) return;
   el.textContent=text; el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),dur);
 }
+
+// -- Mark avatar as speaking --
 function setAvatarSpeaking(playerId, on) {
   const el=document.getElementById(`avatar-${playerId}`);
   if(el) el.classList.toggle('speaking',on);
 }
 
-// ════ BOT AI HINTS + SMART VOTE ════
+// ------------------------------------------------
+//  BOT AI HINTS via Claude API
+// ------------------------------------------------
 function scheduleBotHints(room) {
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   const players=room.playerList||Object.values(room.players||{});
   const bots=players.filter(p=>p.isBot&&!p.eliminated);
   if(!bots.length) return;
-  const duration=(room.round?.discussDuration||45)*1000;
+  const duration=(room.round?.discussDuration||120)*1000;
 
   bots.forEach(bot=>{
+    // Schedule 1-3 random hints per bot during discussion
     const numHints=1+Math.floor(Math.random()*2);
     const used=new Set();
     for(let i=0;i<numHints;i++){
       let delay;
-      do { delay=6000+Math.random()*(duration*0.7); } while(used.has(Math.floor(delay/5000)));
+      do { delay=8000+Math.random()*(duration*0.75); } while(used.has(Math.floor(delay/5000)));
       used.add(Math.floor(delay/5000));
       const t=setTimeout(()=>triggerBotHint(bot,room),delay);
       _botHintTimers.push(t);
@@ -556,70 +675,57 @@ function scheduleBotHints(room) {
 
 async function triggerBotHint(bot, room) {
   if(parseHash().screen!=='discussion') return;
+  // Fix: dùng wordA/B trực tiếp, không dùng _wordAssignments (đã bị xóa)
   const isSpy=bot.id===room.round?.spyId;
   const word=isSpy ? room.round?.wordB : room.round?.wordA;
   setAvatarSpeaking(bot.id,true);
   try {
-    const hint=await callGAS({
-      action:'hint',
-      roomId:S.roomId, botName:bot.name, word, isSpy,
-      wordA:room.round?.wordA, wordB:room.round?.wordB
-    });
+    const hint=await callGAS({action:'hint',botName:bot.name,word,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB});
     showBubble(bot.id,hint,5000);
     postBotChat(bot,hint);
   } catch(e){
-    const fallbacks=isSpy?['Hmm...','Tôi biết rồi...','Thú vị...','Có vẻ quen...']:['Đúng rồi!','Tôi hiểu từ này','Khá rõ ràng','Tôi chắc chắn'];
+    const fallbacks=isSpy?
+      ['Hmm...','Tôi biết rồi...','Thú vị...','Có vẻ quen...']:
+      ['Đúng rồi!','Tôi hiểu từ này','Khá rõ ràng','Tôi chắc chắn'];
     const hint=randItem(fallbacks);
-    showBubble(bot.id,hint,4000); postBotChat(bot,hint);
+    showBubble(bot.id,hint,4000);
+    postBotChat(bot,hint);
   }
   setTimeout(()=>setAvatarSpeaking(bot.id,false),5500);
 }
 
-// ════ BOT SMART VOTE: đọc chat, đoán ai là gián điệp ════
+async function callGAS(payload) {
+  const resp=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});
+  if(!resp.ok) throw new Error('GAS '+resp.status);
+  const data=await resp.json();
+  return data.text?.trim()||'...';
+}
+
 async function getBotVoteTarget(bot, room) {
   const players=Object.values(room.players||{});
   const candidates=players.filter(p=>p.id!==bot.id&&!p.eliminated);
   if(!candidates.length) return null;
-
-  // Lấy lịch sử chat gần nhất
   try {
     const chatSnap=await get(ref(db,`rooms/${S.roomId}/chat`));
     let chatHistory='';
     if(chatSnap.exists()){
       const msgs=Object.values(chatSnap.val()).sort((a,b)=>a.ts-b.ts).slice(-10);
-      chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join('\n');
+      chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join('
+');
     }
-
     const isSpy=bot.id===room.round?.spyId;
-    const myWord=isSpy ? room.round?.wordB : room.round?.wordA;
-
-    const result=await callGAS({
-      action:'vote',
-      botName:bot.name, myWord, isSpy,
-      wordA:room.round?.wordA, wordB:room.round?.wordB,
-      candidates:candidates.map(p=>p.name),
-      chatHistory
-    });
-
-    // GAS trả về tên người bị vote
+    const myWord=isSpy?room.round?.wordB:room.round?.wordA;
+    const result=await callGAS({action:'vote',botName:bot.name,myWord,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB,candidates:candidates.map(p=>p.name),chatHistory});
     const target=candidates.find(p=>p.name===result?.trim());
-    return target?.id || randItem(candidates).id;
+    return target?.id||randItem(candidates).id;
   } catch(e){
     return randItem(candidates).id;
   }
 }
 
-async function callGAS(payload) {
-  const resp=await fetch(GAS_URL, {
-    method:'POST',
-    headers:{'Content-Type':'text/plain'},
-    body:JSON.stringify(payload)
-  });
-  const data=await resp.json();
-  return data.text?.trim()||null;
-}
-
-// ════ CHAT ════
+// ------------------------------------------------
+//  CHAT
+// ------------------------------------------------
 const REACTIONS=['😂','🤔','😱','👀','🤥','✅'];
 
 function startChatListener() {
@@ -628,25 +734,16 @@ function startChatListener() {
   const msgs=document.getElementById('chat-messages');
   if(msgs) msgs.innerHTML='';
 
-  // ── FIX: chỉ append tin mới, không render lại toàn bộ ──
-  let _lastRenderedTs=0;
-
+  let _lastTs=0;
   const unsub=onValue(r,snap=>{
     if(!snap.exists()) return;
-    const allMsgs=snap.val()||{};
-    const sorted=Object.values(allMsgs).sort((a,b)=>a.ts-b.ts);
-
-    const newMsgs=sorted.filter(m=>(m.ts||0)>_lastRenderedTs);
-    if(!newMsgs.length) return;
-
-    newMsgs.forEach(m=>{
-      appendChatMsg(m);
-      if((m.ts||0)>_lastRenderedTs) _lastRenderedTs=m.ts;
-    });
+    const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
+    const fresh=sorted.filter(m=>(m.ts||0)>_lastTs);
+    if(!fresh.length) return;
+    fresh.forEach(m=>{appendChatMsg(m);if((m.ts||0)>_lastTs)_lastTs=m.ts;});
     if(msgs) msgs.scrollTop=msgs.scrollHeight;
-
     if(S.chatCollapsed){
-      S.chatUnread+=newMsgs.length;
+      S.chatUnread+=fresh.length;
       const badge=document.getElementById('chat-unread-badge');
       if(badge){badge.textContent=S.chatUnread>9?'9+':S.chatUnread;badge.classList.add('show');}
     }
@@ -665,32 +762,48 @@ function appendChatMsg(m) {
     <div class="chat-msg-avatar">${emoji}</div>
     <div class="chat-msg-body">
       <div class="chat-msg-name">${esc(m.name)}</div>
-      ${m.reaction?`<div class="chat-msg-reaction">${m.reaction}</div>`:`<div class="chat-msg-text">${esc(m.text||'')}</div>`}
+      ${m.reaction
+        ?`<div class="chat-msg-reaction">${m.reaction}</div>`
+        :`<div class="chat-msg-text">${esc(m.text||'')}</div>`}
     </div>`;
   msgs.appendChild(div);
+
+  // Also show bubble on avatar
   if(m.text) showBubble(m.pid, m.text.length>40?m.text.slice(0,40)+'…':m.text, 4000);
   if(m.reaction) showBubble(m.pid, m.reaction, 2500);
 }
 
 async function postBotChat(bot,text) {
   try {
-    await set(ref(db,`rooms/${S.roomId}/chat/${genId()}`),{pid:bot.id,name:bot.name,text,isBot:true,ts:Date.now()});
+    const msgId=genId();
+    await set(ref(db,`rooms/${S.roomId}/chat/${msgId}`),{
+      pid:bot.id, name:bot.name, text, isBot:true, ts:Date.now()
+    });
   } catch(e){}
 }
+
 async function doSendChat(e) {
   if(e&&e.key&&e.key!=='Enter') return;
   const inp=document.getElementById('chat-inp');
   const text=inp?.value.trim(); if(!text) return;
   inp.value='';
   try {
-    await set(ref(db,`rooms/${S.roomId}/chat/${genId()}`),{pid:S.playerId,name:S.playerName,text,isBot:false,ts:Date.now()});
+    const msgId=genId();
+    await set(ref(db,`rooms/${S.roomId}/chat/${msgId}`),{
+      pid:S.playerId, name:S.playerName, text, isBot:false, ts:Date.now()
+    });
   } catch(e){console.error(e);}
 }
+
 async function doSendReaction(emoji) {
   try {
-    await set(ref(db,`rooms/${S.roomId}/chat/${genId()}`),{pid:S.playerId,name:S.playerName,reaction:emoji,isBot:false,ts:Date.now()});
+    const msgId=genId();
+    await set(ref(db,`rooms/${S.roomId}/chat/${msgId}`),{
+      pid:S.playerId, name:S.playerName, reaction:emoji, isBot:false, ts:Date.now()
+    });
   } catch(e){}
 }
+
 function toggleChat() {
   S.chatCollapsed=!S.chatCollapsed;
   document.querySelector('.chat-panel')?.classList.toggle('collapsed',S.chatCollapsed);
@@ -703,42 +816,34 @@ function toggleChat() {
   }
 }
 
-// ════ TIME-UP VOTING — bot dùng smart vote ════
+// ------------------------------------------------
+//  TIME-UP VOTING
+// ------------------------------------------------
 async function doTimeUpVoting() {
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=false;
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
-
-  // Lấy room snapshot để bot vote thông minh
+  // Smart bot vote: đọc chat trước transaction
   const roomSnap=await get(roomRef()).catch(()=>null);
   const roomData=roomSnap?.val()||null;
-  const players=roomData ? Object.values(roomData.players||{}) : [];
-
+  const botVotes={};
+  if(roomData){
+    const bots=Object.values(roomData.players||{}).filter(p=>p.isBot&&!p.eliminated);
+    await Promise.all(bots.map(async bot=>{
+      const t=await getBotVoteTarget(bot,roomData);
+      if(t) botVotes[bot.id]=t;
+    }));
+  }
   try {
-    // Bot smart vote (async, trước khi transaction)
-    const botVotes={};
-    if(roomData){
-      const bots=players.filter(p=>p.isBot&&!p.eliminated);
-      await Promise.all(bots.map(async bot=>{
-        const target=await getBotVoteTarget(bot,roomData);
-        if(target) botVotes[bot.id]=target;
-      }));
-    }
-
     await runTransaction(roomRef(),room=>{
       if(!room||room.status!=='discussing') return room;
       room.status='voting';
       room.round.votes={...(room.round.earlyVotes||{})};
       delete room.round.earlyVotes;
-      // Apply smart bot votes (fallback to random if missing)
-      const ps=Object.values(room.players||{});
-      ps.filter(p=>p.isBot&&!p.eliminated).forEach(bot=>{
-        if(botVotes[bot.id]) {
-          room.round.votes[bot.id]=botVotes[bot.id];
-        } else {
-          const others=ps.filter(p=>p.id!==bot.id&&!p.eliminated);
-          if(others.length) room.round.votes[bot.id]=randItem(others).id;
-        }
+      const players=Object.values(room.players||{});
+      players.filter(p=>p.isBot&&!p.eliminated).forEach(bot=>{
+        const others=players.filter(p=>p.id!==bot.id&&!p.eliminated);
+        room.round.votes[bot.id]=botVotes[bot.id]||(others.length?randItem(others).id:null);
       });
       room.round.voteDeadline=Date.now()+10000;
       return room;
@@ -746,7 +851,9 @@ async function doTimeUpVoting() {
   } catch(e){console.error(e);}
 }
 
-// ════ VOTE SCREEN ════
+// ------------------------------------------------
+//  VOTE SCREEN (overlay style, 10s timer)
+// ------------------------------------------------
 function renderVote(room) {
   S.selectedVote=null;
   const players=room.playerList||Object.values(room.players||{});
@@ -754,6 +861,7 @@ function renderVote(room) {
   const iAmEliminated=me?.eliminated||false;
   const grid=document.getElementById('vote-grid');
   grid.innerHTML='';
+
   if(iAmEliminated){
     document.getElementById('btn-confirm-vote').style.display='none';
     document.getElementById('vote-waiting').style.display='none';
@@ -763,13 +871,23 @@ function renderVote(room) {
     document.getElementById('btn-confirm-vote').disabled=true;
     document.getElementById('vote-waiting').style.display='none';
     players.filter(p=>!p.eliminated).forEach(p=>{
-      const btn=document.createElement('button'); btn.className='vote-opt';
+      const btn=document.createElement('button');
+      btn.className='vote-opt';
       btn.textContent=(p.isBot?'🤖 ':'')+p.name+(p.id===S.playerId?' (bạn)':'');
-      btn.onclick=()=>{document.querySelectorAll('#vote-grid .vote-opt').forEach(b=>b.classList.remove('sel'));btn.classList.add('sel');S.selectedVote=p.id;document.getElementById('btn-confirm-vote').disabled=false;};
+      btn.onclick=()=>{
+        document.querySelectorAll('#vote-grid .vote-opt').forEach(b=>b.classList.remove('sel'));
+        btn.classList.add('sel'); S.selectedVote=p.id;
+        document.getElementById('btn-confirm-vote').disabled=false;
+      };
       grid.appendChild(btn);
     });
-    const ab=document.createElement('button'); ab.className='vote-opt abstain'; ab.textContent='Bỏ phiếu trắng';
-    ab.onclick=()=>{document.querySelectorAll('#vote-grid .vote-opt').forEach(b=>b.classList.remove('sel'));ab.classList.add('sel');S.selectedVote='abstain';document.getElementById('btn-confirm-vote').disabled=false;};
+    const ab=document.createElement('button');
+    ab.className='vote-opt abstain'; ab.textContent='Bỏ phiếu trắng';
+    ab.onclick=()=>{
+      document.querySelectorAll('#vote-grid .vote-opt').forEach(b=>b.classList.remove('sel'));
+      ab.classList.add('sel'); S.selectedVote='abstain';
+      document.getElementById('btn-confirm-vote').disabled=false;
+    };
     grid.appendChild(ab);
   }
   updateVoteStatus(room);
@@ -795,7 +913,8 @@ function renderSpectatorVotes(room) {
   const maxV=Math.max(1,...Object.values(vc));
   const grid=document.getElementById('vote-grid');
   grid.style.gridTemplateColumns='1fr';
-  grid.innerHTML=`<div style="grid-column:1/-1;text-align:center;font-family:'Bebas Neue';letter-spacing:.2em;font-size:.8rem;color:var(--red);opacity:.7;padding:6px 0;">👻 BẠN ĐÃ BỊ LOẠI — ĐANG XEM</div>
+  grid.innerHTML=`
+    <div style="grid-column:1/-1;text-align:center;font-family:'Bebas Neue';letter-spacing:.2em;font-size:.8rem;color:var(--red);opacity:.7;padding:6px 0;">👻 BẠN ĐÃ BỊ LOẠI — ĐANG XEM</div>
     ${players.filter(p=>!p.eliminated).map(p=>`
       <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--gray2);border:1px solid var(--gray3);">
         <div style="flex:1"><div>${p.isBot?'🤖 ':''}${esc(p.name)}</div>
@@ -813,7 +932,10 @@ function updateVoteStatus(room) {
   const el=document.getElementById('vote-status-text');
   if(el) el.textContent=`${voted}/${humans.length} người đã bỏ phiếu`;
   if(iAmEliminated){renderSpectatorVotes(room);return;}
-  if(S.votedThisRound){document.getElementById('btn-confirm-vote').disabled=true;document.getElementById('vote-waiting').style.display='block';}
+  if(S.votedThisRound){
+    document.getElementById('btn-confirm-vote').disabled=true;
+    document.getElementById('vote-waiting').style.display='block';
+  }
 }
 
 async function doVote() {
@@ -834,7 +956,9 @@ async function doVote() {
   finally{loading(false);}
 }
 
-// ════ RESOLVE VOTES ════
+// ------------------------------------------------
+//  RESOLVE VOTES
+// ------------------------------------------------
 function resolveVotesTx(room) {
   const players=Object.values(room.players||{});
   const vc={};
@@ -843,6 +967,7 @@ function resolveVotesTx(room) {
   const maxV=Math.max(0,...Object.values(vc));
   const topIds=Object.entries(vc).filter(([,cnt])=>cnt===maxV).map(([id])=>id);
   room.round.voteCounts=vc;
+
   if(maxV===0||topIds.length>1){
     room.round.isTie=true; room.round.eliminatedId=null; room.round.eliminatedName=null;
     room.round._nextStatus='discussing'; room.status='votesummary'; return;
@@ -853,22 +978,32 @@ function resolveVotesTx(room) {
   const eliminated=room.players[mostId];
   room.round.eliminatedName=eliminated?.name||'?';
   if(eliminated) eliminated.eliminated=true;
+
   if(mostId===room.round.spyId){
     const spy=room.players[room.round.spyId];
-    if(spy?.isBot){room.round.spyGuess='???';room.round.result='villagers';players.filter(p=>p.id!==room.round.spyId).forEach(p=>{p.score=(p.score||0)+1;});room.round._nextStatus='result';}
-    else{room.round._nextStatus='spyguess';}
+    if(spy?.isBot){
+      room.round.spyGuess='???'; room.round.result='villagers';
+      players.filter(p=>p.id!==room.round.spyId).forEach(p=>{p.score=(p.score||0)+1;});
+      room.round._nextStatus='result';
+    } else { room.round._nextStatus='spyguess'; }
   } else {
     const active=players.filter(p=>!p.eliminated);
-    const villagers=active.filter(p=>p.id!==room.round.spyId);
+    // Chỉ đếm dân thường thật (không tính bot) khi xét điều kiện thắng
+    const villagers=active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
     const spy=room.players[room.round.spyId];
-    if(villagers.length<=1){room.round.result='spy';room.round._nextStatus='result';if(spy)spy.score=(spy.score||0)+2;}
-    else{room.round._nextStatus='discussing';}
+    if(villagers.length<=1){
+      room.round.result='spy'; room.round._nextStatus='result';
+      if(spy) spy.score=(spy.score||0)+2;
+    } else { room.round._nextStatus='discussing'; }
   }
   room.status='votesummary';
 }
 
-// ════ VOTE SUMMARY ════
+// ------------------------------------------------
+//  VOTE SUMMARY
+// ------------------------------------------------
 let _summaryTimer=null;
+
 function showVoteSummary(room) {
   const rd=room.round, players=room.playerList||Object.values(room.players||{});
   const vc=rd.voteCounts||{}, isTie=rd.isTie||false;
@@ -885,24 +1020,31 @@ function showVoteSummary(room) {
   if(_summaryTimer) clearInterval(_summaryTimer);
   let cd=4;
   document.getElementById('vs-countdown').textContent=`Tiếp tục sau ${cd} giây`;
-  _summaryTimer=setInterval(()=>{cd--;if(cd>0)document.getElementById('vs-countdown').textContent=`Tiếp tục sau ${cd} giây`;else{clearInterval(_summaryTimer);if(room.hostId===S.playerId)advanceAfterSummary();}},1000);
+  _summaryTimer=setInterval(()=>{
+    cd--;
+    if(cd>0) document.getElementById('vs-countdown').textContent=`Tiếp tục sau ${cd} giây`;
+    else { clearInterval(_summaryTimer); if(room.hostId===S.playerId) advanceAfterSummary(); }
+  },1000);
   nav('votesummary',{room:S.roomId});
 }
+
 async function advanceAfterSummary() {
   await runTransaction(roomRef(),room=>{
     if(!room||room.status!=='votesummary') return room;
     room.status=room.round._nextStatus||'discussing';
     delete room.round._nextStatus;
     if(room.status==='discussing'){
-      room.round.discussStartAt=serverTimestamp();
-      room.round.discussDuration=room.round.isTie?30:45;
+      room.round.discussStartAt=Date.now();
+      room.round.discussDuration=room.round.isTie?60:120;
       room.round.votes={}; room.round.voteCounts={}; room.round.isTie=false;
     }
     return room;
   });
 }
 
-// ════ SPY GUESS ════
+// ------------------------------------------------
+//  SPY GUESS
+// ------------------------------------------------
 function showSpyGuess(room) {
   const players=room.playerList||Object.values(room.players||{});
   const spy=players.find(p=>p.id===room.round.spyId);
@@ -913,6 +1055,7 @@ function showSpyGuess(room) {
   document.getElementById('sg-input').value=''; S.spyGuessSubmitted=false;
   nav('spyguess',{room:S.roomId});
 }
+
 async function doSpyGuess() {
   const guess=document.getElementById('sg-input').value.trim();
   if(!guess){toast('Nhập đáp án!');return;}
@@ -934,7 +1077,9 @@ async function doSpyGuess() {
   finally{loading(false);}
 }
 
-// ════ RESULT ════
+// ------------------------------------------------
+//  RESULT
+// ------------------------------------------------
 function showResult(room) {
   const rd=room.round, players=room.playerList||Object.values(room.players||{});
   const isWin=rd.result==='villagers';
@@ -957,7 +1102,9 @@ function showResult(room) {
   nav('result',{room:S.roomId});
 }
 
-// ════ NEXT ROUND / LEAVE ════
+// ------------------------------------------------
+//  NEXT ROUND / LEAVE
+// ------------------------------------------------
 async function doNextRound() {
   loading(true);
   try {
@@ -971,6 +1118,7 @@ async function doNextRound() {
   } catch(e){toast('Lỗi: '+e.message);console.error(e);}
   finally{loading(false);}
 }
+
 async function doLeave() {
   stopListening();
   if(S.timerInterval) clearInterval(S.timerInterval);
@@ -993,19 +1141,27 @@ async function doLeave() {
   nav('home');
 }
 
-// ════ INIT ════
+// ------------------------------------------------
+//  INIT
+// ------------------------------------------------
 load();
 const{screen:initScreen,params:initParams}=parseHash();
 showScreen(initScreen);
-if(initScreen==='join'&&initParams.room){const el=document.getElementById('join-code');if(el)el.value=initParams.room;}
+if(initScreen==='join'&&initParams.room){
+  const el=document.getElementById('join-code'); if(el) el.value=initParams.room;
+}
 if(S.roomId&&S.playerId&&!['home','create','join','rules'].includes(initScreen)) listenRoom(S.roomId);
 
+// Build reaction picker
 const rp=document.getElementById('reaction-picker');
 if(rp) REACTIONS.forEach(e=>{
-  const btn=document.createElement('button'); btn.className='reaction-btn'; btn.textContent=e;
-  btn.onclick=()=>doSendReaction(e); rp.appendChild(btn);
+  const btn=document.createElement('button');
+  btn.className='reaction-btn'; btn.textContent=e;
+  btn.onclick=()=>doSendReaction(e);
+  rp.appendChild(btn);
 });
 
+// -- EXPOSE GLOBALS --
 window.nav=nav; window.copyJoinLink=copyJoinLink; window.flipCard=flipCard;
 window.doCreateRoom=doCreateRoom; window.doJoinRoom=doJoinRoom;
 window.doToggleReady=doToggleReady; window.doAddBot=doAddBot; window.doRemoveBot=doRemoveBot;
