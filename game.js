@@ -447,7 +447,7 @@ function startDiscussionScreen(room) {
 
   // Timer
   const startAt=room.round?.discussStartAt||Date.now();
-  const duration=room.round?.discussDuration||30;
+  const duration=room.round?.discussDuration||45;
   S.timerRemaining=Math.max(0,duration-Math.floor((Date.now()-startAt)/1000));
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=true;
