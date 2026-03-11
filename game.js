@@ -677,7 +677,13 @@ function scheduleBotHints(room) {
 async function triggerBotHint(bot, room) {
   // Check still in discussion
   if(parseHash().screen!=='discussion') return;
-  const word=room._wordAssignments?.[bot.id]||room.round?.wordA||'?';
+  let word;
+
+  if (bot.id === room.round?.spyId) {
+    word = room.round?.wordB;
+  } else {
+    word = room.round?.wordA;
+  }
   const isSpy=bot.id===room.round?.spyId;
   setAvatarSpeaking(bot.id,true);
   try {
