@@ -52,7 +52,7 @@ async function getKeywords() {
 const S = {
   roomId:'', playerId:'', playerName:'', myWord:null,
   roomListener:null, chatListener:null,
-  timerInterval:null, timerRemaining:120, timerRunning:false,
+  timerInterval:null, timerRemaining:45, timerRunning:false,
   selectedVote:null, earlyVoteChoice:null, earlyVoted:false,
   votedThisRound:false, voteTimerInterval:null,
   cardFlipped:false, cardConfirmed:false, spyGuessSubmitted:false,
@@ -374,7 +374,7 @@ function beginRoundTx(room,keywords) {
   const wordA=shuffled[0], wordB=shuffled[1];
   const players=Object.values(room.players), spy=randItem(players);
   room.status='playing'; room.roundNumber=(room.roundNumber||0)+1;
-  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:120};
+  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:45};
   room._wordAssignments={};
   players.forEach(p=>{
     room._wordAssignments[p.id]=(p.id===spy.id)?wordB:wordA;
@@ -447,7 +447,7 @@ function startDiscussionScreen(room) {
 
   // Timer
   const startAt=room.round?.discussStartAt||Date.now();
-  const duration=room.round?.discussDuration||120;
+  const duration=room.round?.discussDuration||30;
   S.timerRemaining=Math.max(0,duration-Math.floor((Date.now()-startAt)/1000));
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=true;
@@ -656,7 +656,7 @@ function scheduleBotHints(room) {
   const players=room.playerList||Object.values(room.players||{});
   const bots=players.filter(p=>p.isBot&&!p.eliminated);
   if(!bots.length) return;
-  const duration=(room.round?.discussDuration||120)*1000;
+  const duration=(room.round?.discussDuration||45)*1000;
 
   bots.forEach(bot=>{
     // Schedule 1-3 random hints per bot during discussion
@@ -1040,7 +1040,7 @@ async function advanceAfterSummary() {
     delete room.round._nextStatus;
     if(room.status==='discussing'){
       room.round.discussStartAt=Date.now();
-      room.round.discussDuration=room.round.isTie?60:120;
+      room.round.discussDuration=room.round.isTie?30:45;
       room.round.votes={}; room.round.voteCounts={}; room.round.isTie=false;
     }
     return room;
