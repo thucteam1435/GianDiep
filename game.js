@@ -63,10 +63,8 @@ let _wordPickedUp = false;
 
 // ------------------------------------------------
 //  BOT ACTION LOG
-//  Lưu tạm metadata mỗi khi bot nói trong ván
-//  để sendLearnPayload dùng đúng type/suspectName
 // ------------------------------------------------
-const _botActionLog = {}; // { botId: [{type, text, suspectName, ts}] }
+const _botActionLog = {};
 
 function logBotAction(botId, type, text, suspectName) {
   if (!_botActionLog[botId]) _botActionLog[botId] = [];
@@ -109,6 +107,25 @@ function toast(msg,dur=3000){
   clearTimeout(_tt); _tt=setTimeout(()=>el.classList.remove('show'),dur);
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ------------------------------------------------
+//  AVATAR HELPER
+// ------------------------------------------------
+function makeAvatarHtml(player, size='36px', forTable=false) {
+  const defaultEmoji = player.isBot ? '🤖' : '😊';
+  if (player.avatarUrl) {
+    if (forTable) {
+      return `<img src="${player.avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+        onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\\'font-size:1.2rem\\'>${defaultEmoji}</span>')">`;
+    }
+    return `<img src="${player.avatarUrl}" class="lobby-avatar-img"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+      <div class="lobby-avatar-emoji" style="display:none">${defaultEmoji}</div>`;
+  }
+  return forTable
+    ? `<span style="font-size:1.2rem">${defaultEmoji}</span>`
+    : `<div class="lobby-avatar-emoji">${defaultEmoji}</div>`;
+}
 
 // ------------------------------------------------
 //  ROUTER
@@ -183,7 +200,6 @@ function handleRoomUpdate(room) {
     S.cardFlipped=false; S.cardConfirmed=false;
     S.votedThisRound=false; S.earlyVoted=false; S.earlyVoteChoice=null;
     S.spyGuessSubmitted=false; _wordPickedUp=false;
-    // FIX: reset action log khi vòng mới bắt đầu
     clearBotActionLog();
   }
 
@@ -286,12 +302,13 @@ async function doCreateRoom() {
     S.roomId=roomId; S.playerId=playerId; S.playerName=name; S.myWord=null; save();
     await set(roomRef(roomId),{
       id:roomId, createdAt:Date.now(), status:'waiting', hostId:playerId, roundNumber:0,
-      players:{[playerId]:{id:playerId,name,ready:false,score:0,isBot:false,cardConfirmed:false}}
+      players:{[playerId]:{id:playerId,name,ready:false,score:0,isBot:false,cardConfirmed:false,avatarUrl:''}}
     });
     listenRoom(roomId); nav('lobby',{room:roomId});
   } catch(e){toast('❌ Lỗi: '+e.message);console.error(e);}
   finally{loading(false);}
 }
+
 async function doJoinRoom() {
   const code=document.getElementById('join-code').value.trim().toUpperCase();
   const name=document.getElementById('join-name').value.trim();
@@ -307,7 +324,7 @@ async function doJoinRoom() {
     if (players.some(p=>p.name.toLowerCase()===name.toLowerCase())) { toast('Tên đã dùng!'); return; }
     const playerId=genId();
     S.roomId=code; S.playerId=playerId; S.playerName=name; S.myWord=null; save();
-    await set(playerRef(code,playerId),{id:playerId,name,ready:false,score:0,isBot:false,cardConfirmed:false});
+    await set(playerRef(code,playerId),{id:playerId,name,ready:false,score:0,isBot:false,cardConfirmed:false,avatarUrl:''});
     listenRoom(code); nav('lobby',{room:code});
   } catch(e){toast('❌ '+e.message);console.error(e);}
   finally{loading(false);}
@@ -323,25 +340,35 @@ function renderLobby(room) {
   const me=players.find(p=>p.id===S.playerId);
   const iAmReady=me?.ready||false, isHost=room.hostId===S.playerId;
   const botCount=players.filter(p=>p.isBot).length;
+
   document.getElementById('lobby-player-list').innerHTML=players.map(p=>{
     const b=[];
     if(p.id===room.hostId) b.push('<span class="pbadge host-badge">HOST</span>');
     if(p.isBot)            b.push('<span class="pbadge bot-badge">🤖 BOT</span>');
     if(p.id===S.playerId)  b.push('<span class="pbadge you-badge">BẠN</span>');
     b.push(p.ready?'<span class="pbadge ready-badge">✓ SẴN SÀNG</span>':'<span class="pbadge wait-badge">CHỜ...</span>');
-    return `<div class="player-row${p.isBot?' bot-row':''}"><span class="pname">${esc(p.name)}</span><span style="display:flex;gap:5px">${b.join('')}</span></div>`;
+    return `<div class="player-row${p.isBot?' bot-row':''}">
+      <div class="lobby-avatar-wrap">${makeAvatarHtml(p)}</div>
+      <span class="pname">${esc(p.name)}</span>
+      <span style="display:flex;gap:5px">${b.join('')}</span>
+    </div>`;
   }).join('');
+
   const btn=document.getElementById('btn-ready');
-  if (iAmReady){btn.textContent='✕ HỦY';btn.className='btn full red';} else {btn.textContent='✓ SẴN SÀNG';btn.className='btn full green';}
+  if(iAmReady){btn.textContent='✕ HỦY';btn.className='btn full red';}
+  else{btn.textContent='✓ SẴN SÀNG';btn.className='btn full green';}
   btn.style.maxWidth='320px';
+
   document.getElementById('bot-buttons').classList.toggle('hidden',!isHost);
   document.getElementById('btn-remove-bot').classList.toggle('hidden',!(isHost&&botCount>0));
+
   const readyCount=players.filter(p=>p.ready).length;
   const st=document.getElementById('lobby-status-text');
   if(players.length<3){st.textContent=`Cần ít nhất 3 người (hiện có ${players.length})`;st.className='muted dots';}
   else if(readyCount<players.length){st.textContent=`${readyCount}/${players.length} đã sẵn sàng...`;st.className='muted dots';}
   else{st.textContent='Tất cả sẵn sàng! Đang bắt đầu...';st.className='muted';}
 }
+
 async function doToggleReady() {
   loading(true);
   try {
@@ -356,25 +383,62 @@ async function doToggleReady() {
   } catch(e){toast('Lỗi: '+e.message);console.error(e);}
   finally{loading(false);}
 }
+
 async function doAddBot() {
   loading(true);
   try {
-    const kw=await getKeywords();
-    await runTransaction(roomRef(),room=>{
-      if(!room||room.status!=='waiting') return room;
-      const players=Object.values(room.players||{});
-      if(players.length>=8){toast('Phòng đầy!');return room;}
-      const botNames=["Bot Alpha","Bot Beta","Bot Gamma","Bot Delta","Bot Epsilon","Bot Zeta"];
-      const used=players.map(p=>p.name);
-      const name=botNames.find(n=>!used.includes(n))||('Bot '+genId().slice(0,4));
-      const botId='bot_'+genId();
-      room.players[botId]={id:botId,name,ready:true,score:0,isBot:true,cardConfirmed:false};
-      if(Object.values(room.players).length>=3&&Object.values(room.players).every(p=>p.ready)) beginRoundTx(room,kw);
+    const kw = await getKeywords();
+
+    // Bước 1: Lấy danh sách tên đang dùng
+    const snap = await get(roomRef());
+    const room = snap.val();
+    if (!room) { loading(false); return; }
+    const players = Object.values(room.players || {});
+    if (players.length >= 8) { toast('Phòng đầy! Tối đa 8 người.'); loading(false); return; }
+    const usedNames = players.map(p => p.name);
+
+    // Bước 2: Hỏi GAS lấy bot ngẫu nhiên từ Sky CotL roster
+    let botName = '', botAvatar = '';
+    try {
+      const resp = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'bot_roster', usedNames })
+      });
+      const data = await resp.json();
+      botName   = data.name      || '';
+      botAvatar = data.avatarUrl || '';
+    } catch(e) {
+      console.warn('bot_roster GAS error:', e);
+    }
+
+    // Fallback nếu GAS lỗi
+    if (!botName) {
+      const roster = ["Daydream","Kizuna","Anubis","Teth","Daleth","Fire","Water","Air","Melan","Earth"];
+      botName = roster.find(n => !usedNames.includes(n)) || ('Spirit #' + genId().slice(0,4));
+    }
+
+    // Bước 3: Thêm bot vào Firebase
+    await runTransaction(roomRef(), room => {
+      if (!room || room.status !== 'waiting') return room;
+      const current = Object.values(room.players || {});
+      if (current.length >= 8) return room;
+      const botId = 'bot_' + genId();
+      room.players[botId] = {
+        id: botId, name: botName, ready: true, score: 0,
+        isBot: true, cardConfirmed: false,
+        avatarUrl: botAvatar
+      };
+      if (Object.values(room.players).length >= 3 &&
+          Object.values(room.players).every(p => p.ready)) {
+        beginRoundTx(room, kw);
+      }
       return room;
     });
-  } catch(e){toast('Lỗi: '+e.message);console.error(e);}
-  finally{loading(false);}
+  } catch(e) { toast('Lỗi: ' + e.message); console.error(e); }
+  finally { loading(false); }
 }
+
 async function doRemoveBot() {
   loading(true);
   try {
@@ -526,12 +590,15 @@ function buildRoundTable(room) {
                  sector<=-Math.PI/4&&sector>-3*Math.PI/4?'arr-up':'arr-left';
     const isMe=p.id===S.playerId;
     const canClick=!iAmEliminated&&!isMe&&!p.eliminated&&!S.earlyVoted;
-    const emoji=p.isBot?'🤖':(isMe?'😊':['👤','🧑','👩','🙂','😐','🧐'][i%6]);
     const hasVoted=!!(room.round?.earlyVotes?.[p.id]||room.round?.votes?.[p.id]);
+
+    // Avatar: ảnh thật hoặc emoji fallback
+    const avatarContent = makeAvatarHtml(p, '100%', true);
+
     wrap.innerHTML=`
       <div class="speech-bubble ${arrDir}" id="bubble-${p.id}"></div>
       <div class="avatar${isMe?' is-me':''}${p.eliminated?' eliminated':''}${canClick?' vote-target':''}" id="avatar-${p.id}" style="${canClick?'cursor:pointer;':''}">
-        ${emoji}
+        ${avatarContent}
         <div class="avatar-voted-badge${hasVoted?' show':''}" id="voted-${p.id}">✓</div>
         ${p.eliminated?'<div class="avatar-elim-badge">✕</div>':''}
         <div class="avatar-vote-ring" id="ring-${p.id}"></div>
@@ -654,7 +721,7 @@ function setAvatarSpeaking(playerId, on) {
 }
 
 // ------------------------------------------------
-//  GAS CALL — helper dùng chung
+//  GAS CALL
 // ------------------------------------------------
 async function callGAS(payload) {
   const resp = await fetch(GAS_URL, {
@@ -669,7 +736,7 @@ async function callGAS(payload) {
 }
 
 // ------------------------------------------------
-//  BOT AI — trigger action + ghi sheet ngay lập tức
+//  BOT AI
 // ------------------------------------------------
 function scheduleBotHints(room) {
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
@@ -703,7 +770,6 @@ async function triggerBotAction(bot, actionIndex) {
   const players=room.playerList||Object.values(room.players||{});
   const others=players.filter(p=>p.id!==bot.id&&!p.eliminated);
 
-  // Đọc chat gần nhất
   let recentChat='';
   let recentMsgs=[];
   try {
@@ -714,7 +780,6 @@ async function triggerBotAction(bot, actionIndex) {
     }
   } catch(e){}
 
-  // Quyết định action
   let action;
   if(actionIndex===0){
     action='hint';
@@ -725,7 +790,6 @@ async function triggerBotAction(bot, actionIndex) {
     action = isMentioned ? 'defend' : randItem(['hint','accuse','accuse','react','react']);
   }
 
-  // Chọn suspect dựa trên activity trong chat
   const msgCountByPlayer={};
   recentMsgs.forEach(m=>{ if(m.pid!==bot.id) msgCountByPlayer[m.pid]=(msgCountByPlayer[m.pid]||0)+1; });
   const mostActive=[...others].sort((a,b)=>(msgCountByPlayer[b.id]||0)-(msgCountByPlayer[a.id]||0));
@@ -763,11 +827,8 @@ async function triggerBotAction(bot, actionIndex) {
     postBotChat(bot,finalText);
   }
 
-  // ✅ FIX 1: Lưu action vào log nội bộ (để sendLearnPayload dùng)
   logBotAction(bot.id, action, finalText, suspect?.name||'');
 
-  // ✅ FIX 2: Gửi action lên GAS ngay lập tức để sheet có data real-time
-  //    Chỉ gửi khi có GAS text thật (không fallback) để tránh nhiễu data
   if (!usedFallback) {
     const gameId = S.roomId + '_' + (room.roundNumber || 0);
     const role = isSpy ? 'spy' : 'villager';
@@ -791,7 +852,6 @@ async function triggerBotAction(bot, actionIndex) {
   setTimeout(()=>setAvatarSpeaking(bot.id,false),5500);
 }
 
-// Gửi action lên GAS không chặn UI, không throw
 function sendActionToGAS(payload) {
   fetch(GAS_URL, {
     method: 'POST',
@@ -866,9 +926,19 @@ function appendChatMsg(m) {
   const isMe=m.pid===S.playerId;
   const div=document.createElement('div');
   div.className='chat-msg'+(isMe?' mine':'');
-  const emoji=m.isBot?'🤖':'😊';
+
+  // Avatar trong chat: dùng ảnh nếu bot có avatarUrl
+  const playerData = Object.values(_lastRoom?.players||{}).find(p=>p.id===m.pid);
+  let chatAvatarHtml;
+  if (playerData?.avatarUrl) {
+    chatAvatarHtml = `<img src="${playerData.avatarUrl}" class="chat-avatar-img"
+      onerror="this.outerHTML='<span>${m.isBot?'🤖':'😊'}</span>'">`;
+  } else {
+    chatAvatarHtml = m.isBot ? '🤖' : '😊';
+  }
+
   div.innerHTML=`
-    <div class="chat-msg-avatar">${emoji}</div>
+    <div class="chat-msg-avatar">${chatAvatarHtml}</div>
     <div class="chat-msg-body">
       <div class="chat-msg-name">${esc(m.name)}</div>
       ${m.reaction
@@ -1190,7 +1260,7 @@ async function doSpyGuess() {
 }
 
 // ------------------------------------------------
-//  LEARN — gửi kết quả ván cuối để bot tổng kết
+//  LEARN
 // ------------------------------------------------
 async function sendLearnPayload(room) {
   try {
@@ -1200,7 +1270,6 @@ async function sendLearnPayload(room) {
     if (!bots.length) return;
 
     const gameId = S.roomId + '_' + (room.roundNumber || 0);
-    // FIX: gửi đủ playerList và keywordList để GAS tách mentions vs keywords
     const playerList  = players.map(p => p.name);
     const keywordList = [rd.wordA, rd.wordB].filter(Boolean);
 
@@ -1208,18 +1277,13 @@ async function sendLearnPayload(room) {
       const isSpy     = bot.id === rd.spyId;
       const won       = rd.result === (isSpy ? 'spy' : 'villagers');
       const word      = isSpy ? rd.wordB : rd.wordA;
-
-      // FIX: dùng _botActionLog thay vì hardcode type='hint'
       const actions = (_botActionLog[bot.id] || []).map(a => ({
         type:        a.type,
         text:        a.text,
-        suspectName: a.suspectName   // tường minh cho GAS
+        suspectName: a.suspectName
       }));
-
-      // FIX: giữ cả ID lẫn tên để GAS so sánh đúng
       const votedForId   = rd.votes?.[bot.id] || null;
       const votedForName = votedForId ? (players.find(p => p.id === votedForId)?.name || null) : null;
-
       const wasVotedBy = Object.entries(rd.votes || {})
         .filter(([, tid]) => tid === bot.id)
         .map(([pid]) => players.find(p => p.id === pid)?.name || pid);
@@ -1232,9 +1296,9 @@ async function sendLearnPayload(room) {
         wordB:        rd.wordB,
         actions,
         votedFor:     votedForName,
-        _votedForId:  votedForId,    // ID thật để GAS so sánh với spyId
+        _votedForId:  votedForId,
         wasVotedBy,
-        spyId:        rd.spyId       // FIX: gửi spyId để GAS tính vote accuracy đúng
+        spyId:        rd.spyId
       };
     });
 
@@ -1273,7 +1337,6 @@ function showResult(room) {
     <td>${p.score||0} điểm</td></tr>`).join('');
   document.getElementById('btn-next-round').style.display=room.hostId===S.playerId?'inline-flex':'none';
   nav('result',{room:S.roomId});
-  // Chỉ host gửi LEARN tránh duplicate
   if (room.hostId === S.playerId) sendLearnPayload(room);
 }
 
