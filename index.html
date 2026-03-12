@@ -392,13 +392,83 @@
 <!-- ══════════════════════════════════════════════
      BOT BATTLE — Observer screen
 ══════════════════════════════════════════════ -->
-<div id="screen-botbattle" class="screen" style="padding:0;align-items:stretch;">
-  <div id="botbattle-content">
-    <div style="text-align:center;padding:40px 20px;opacity:.4">
-      <div style="font-size:2rem">🤖</div>
-      <div style="font-family:'Bebas Neue';letter-spacing:.15em;margin-top:8px">Đang khởi động...</div>
+<!-- ══════════════════════════════════════════════
+     BOT BATTLE — dùng lại discussion UI + overlay stats
+══════════════════════════════════════════════ -->
+<div id="screen-botbattle" class="screen" style="padding:0;height:100vh;overflow:hidden;flex-direction:column;">
+
+  <!-- TOP BAR — JS ghi vào tb-round-badge / tb-timer / tb-word-display -->
+  <div class="table-topbar">
+    <div class="tb-left">
+      <div class="tb-round-badge" id="tb-round-badge">VÒNG 1</div>
+      <div class="tb-word-chip" id="tb-word-display">—</div>
+    </div>
+    <div class="tb-right">
+      <div class="tb-timer" id="tb-timer">01:30</div>
+      <button class="btn ghost" style="padding:6px 10px;font-size:.7rem" onclick="doLeave()">✕</button>
     </div>
   </div>
+
+  <!-- TABLE AREA — bàn tròn, bot ngồi đây -->
+  <div class="table-area" style="flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;">
+
+    <div class="tie-banner" id="table-tie-banner" style="display:none">⚖️ HOÀ — THẢO LUẬN THÊM!</div>
+
+    <!-- Bàn tròn — JS inject .table-player vào đây -->
+    <div class="round-table" id="round-table">
+      <div class="round-table-surface">
+        <div class="table-center-icon">🤖</div>
+        <div class="table-center-status" id="table-center-text">— bot</div>
+      </div>
+    </div>
+
+    <!-- Overlay góc phải: bảng điểm + suspicion thu gọn, JS render vào đây -->
+    <div id="botbattle-content" style="
+      position:absolute;top:8px;right:8px;
+      width:clamp(130px,36vw,190px);
+      background:rgba(6,6,6,.9);
+      border:1px solid #252525;
+      border-radius:6px;
+      padding:8px 10px;
+      font-size:.7rem;
+      max-height:calc(100% - 16px);
+      overflow-y:auto;
+      backdrop-filter:blur(6px);
+      z-index:20;
+      pointer-events:none;
+    "></div>
+
+  </div>
+
+  <!-- BOTTOM STATUS — cần id để JS không lỗi -->
+  <div style="background:rgba(10,10,10,.97);border-top:1px solid var(--gray3);padding:8px 14px;flex-shrink:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <p class="muted" style="font-size:.78rem;margin:0" id="disc-voted-count">0/0 đã vote</p>
+      <div id="disc-voted-notice" style="display:none;">
+        <p style="font-family:'Bebas Neue';letter-spacing:.15em;color:var(--green);font-size:.8rem;margin:0;">✓ VOTED</p>
+      </div>
+    </div>
+    <div id="disc-early-vote-section" style="display:none;">
+      <div class="vote-grid" id="disc-vote-grid"></div>
+      <button class="btn red full" id="disc-btn-vote" onclick="doEarlyVote()" disabled></button>
+    </div>
+  </div>
+
+  <!-- CHAT — observer xem bot nói chuyện -->
+  <div class="chat-panel collapsed">
+    <div class="chat-toggle-bar" onclick="toggleChat()">
+      <div class="chat-toggle-title">
+        🤖 BOT CHAT
+        <div class="chat-unread-badge" id="chat-unread-badge">0</div>
+      </div>
+      <div style="font-size:.8rem;opacity:.4">▲</div>
+    </div>
+    <div class="chat-messages" id="chat-messages"></div>
+    <div style="padding:8px 12px;text-align:center;opacity:.3;font-size:.72rem;border-top:1px solid #181818;">
+      👁 Observer — chỉ xem, không thể nhắn tin
+    </div>
+  </div>
+
 </div>
 
 <!-- ── TOAST + LOADING ── -->
