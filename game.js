@@ -1,5 +1,19 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
+
+// Inject vote-ring CSS
+(function(){
+  const s=document.createElement('style');
+  s.textContent=`
+    .avatar-vote-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid var(--red);opacity:0;transition:opacity .15s,transform .15s;pointer-events:none;transform:scale(.85);}
+    .avatar.vote-target:hover .avatar-vote-ring{opacity:.4;transform:scale(1);}
+    .avatar[style*="box-shadow"] .avatar-vote-ring{opacity:1!important;transform:scale(1)!important;}
+    .avatar.vote-target{transition:box-shadow .15s;}
+    .vote-target-name{color:var(--cream);opacity:.9;}
+  `;
+  document.head.appendChild(s);
+})();
+
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ------------------------------------------------
@@ -374,7 +388,7 @@ function beginRoundTx(room,keywords) {
   const wordA=shuffled[0], wordB=shuffled[1];
   const players=Object.values(room.players), spy=randItem(players);
   room.status='playing'; room.roundNumber=(room.roundNumber||0)+1;
-  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:120};
+  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:90};
   room._wordAssignments={};
   players.forEach(p=>{
     room._wordAssignments[p.id]=(p.id===spy.id)?wordB:wordA;
@@ -500,6 +514,9 @@ function buildRoundTable(room) {
   const size=tableEl.offsetWidth||300;
   const cx=size/2, cy=size/2, r=size*0.42;
 
+  const me=players.find(p=>p.id===S.playerId);
+  const iAmEliminated=me?.eliminated||false;
+
   players.forEach((p,i)=>{
     const angle=(2*Math.PI*i/n)-Math.PI/2;
     const x=cx+r*Math.cos(angle);
@@ -518,26 +535,61 @@ function buildRoundTable(room) {
                  sector<=-Math.PI/4&&sector>-3*Math.PI/4?'arr-up':'arr-left';
 
     const isMe=p.id===S.playerId;
+    const canClick=!iAmEliminated&&!isMe&&!p.eliminated&&!S.earlyVoted;
     const emoji=p.isBot?'🤖':(isMe?'😊':['👤','🧑','👩','🙂','😐','🧐'][i%6]);
     const hasVoted=!!(room.round?.earlyVotes?.[p.id]||room.round?.votes?.[p.id]);
 
     wrap.innerHTML=`
       <div class="speech-bubble ${arrDir}" id="bubble-${p.id}"></div>
-      <div class="avatar${isMe?' is-me':''}${p.eliminated?' eliminated':''}" id="avatar-${p.id}">
+      <div class="avatar${isMe?' is-me':''}${p.eliminated?' eliminated':''}${canClick?' vote-target':''}" id="avatar-${p.id}" style="${canClick?'cursor:pointer;':''}">
         ${emoji}
         <div class="avatar-voted-badge${hasVoted?' show':''}" id="voted-${p.id}">✓</div>
         ${p.eliminated?'<div class="avatar-elim-badge">✕</div>':''}
+        <div class="avatar-vote-ring" id="ring-${p.id}"></div>
       </div>
       <div class="avatar-name${isMe?' is-me':''}">${esc(p.name)}</div>
     `;
+    if(canClick){
+      const av=wrap.querySelector(`#avatar-${p.id}`);
+      av.addEventListener('click',()=>handleAvatarVoteClick(p.id,players));
+    }
     tableEl.appendChild(wrap);
   });
 
-  // Update center text
   const active=players.filter(p=>!p.eliminated).length;
   document.getElementById('table-center-text').textContent=`${active} người`;
 
   updateDiscVoteStatus(room);
+}
+
+function handleAvatarVoteClick(targetId, players) {
+  if(S.earlyVoted) return;
+  S.earlyVoteChoice = S.earlyVoteChoice===targetId ? null : targetId;
+  players.forEach(p=>{
+    const ring=document.getElementById(`ring-${p.id}`);
+    const av=document.getElementById(`avatar-${p.id}`);
+    const sel=S.earlyVoteChoice===p.id;
+    if(ring) ring.style.opacity=sel?'1':'0';
+    if(av) av.style.boxShadow=sel?'0 0 0 3px var(--red)':'';
+  });
+  updateAvatarVoteBtn();
+}
+
+function updateAvatarVoteBtn() {
+  let btn=document.getElementById('avatar-vote-confirm-btn');
+  if(!S.earlyVoteChoice){
+    if(btn) btn.remove();
+    return;
+  }
+  if(!btn){
+    btn=document.createElement('button');
+    btn.id='avatar-vote-confirm-btn';
+    btn.className='btn red full';
+    btn.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:300;max-width:280px;width:calc(100% - 32px);box-shadow:0 4px 20px rgba(192,57,43,.5)';
+    btn.innerHTML='<span>GUI PHIEU →</span>';
+    btn.onclick=doEarlyVote;
+    document.body.appendChild(btn);
+  }
 }
 
 function updateTableAvatars(room) {
@@ -572,10 +624,7 @@ function updateDiscVoteStatus(room) {
   const me=players.find(p=>p.id===S.playerId);
   const iAmEliminated=me?.eliminated||false;
   const earlyPanel=document.getElementById('disc-early-vote-section');
-  if(earlyPanel){
-    if(iAmEliminated||S.earlyVoted) earlyPanel.style.display='none';
-    else earlyPanel.style.display='';
-  }
+  if(earlyPanel) earlyPanel.style.display='none';
   const votedNotice=document.getElementById('disc-voted-notice');
   if(votedNotice) votedNotice.style.display=(S.earlyVoted&&!iAmEliminated)?'block':'none';
 }
@@ -611,6 +660,8 @@ function renderDiscVoteGrid(room) {
 async function doEarlyVote() {
   if(!S.earlyVoteChoice){toast('Hãy chọn!');return;}
   S.earlyVoted=true; loading(true);
+  const confirmBtn=document.getElementById('avatar-vote-confirm-btn');
+  if(confirmBtn) confirmBtn.remove();
   try {
     await runTransaction(roomRef(),room=>{
       if(!room||room.status!=='discussing') return room;
@@ -1034,7 +1085,7 @@ async function advanceAfterSummary() {
     delete room.round._nextStatus;
     if(room.status==='discussing'){
       room.round.discussStartAt=Date.now();
-      room.round.discussDuration=room.round.isTie?60:120;
+      room.round.discussDuration=room.round.isTie?45:90;
       room.round.votes={}; room.round.voteCounts={}; room.round.isTie=false;
     }
     return room;
