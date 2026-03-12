@@ -712,7 +712,7 @@ function renderBotBattleObserver(room) {
     <div class="bb-section-title">🏅 Bảng điểm</div>
     ${sorted.map((p,i) => `
       <div class="bb-score-row">
-        <span class="bb-rank" style="${i===0?'color:gold':'i===1?color:#ccc':'color:#cd7f32'}">#${i+1}</span>
+        <span class="bb-rank" style="${i===0?'color:gold':i===1?'color:#ccc':'color:#cd7f32'}">#${i+1}</span>
         <span class="bb-name">${p.isBot?'🤖 ':''}${esc(p.name)}</span>
         <span class="bb-pts">${p.score||0} pt</span>
         ${p.id===rd.spyId ? '<span class="bb-badge spy">🕵️ SPY</span>' : ''}
