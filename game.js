@@ -509,9 +509,32 @@ function handleBotBattleFlow(room) {
   if (status === 'discussing') {
     if (!S._inDiscussion) {
       S._inDiscussion = true;
+      _lastRoom = room;
+      S.earlyVoteChoice = null;
+      S.earlyVoted = false;
+      const badgeEl = document.getElementById('tb-round-badge');
+      const wordEl  = document.getElementById('tb-word-display');
+      if (badgeEl) badgeEl.textContent = 'VÒNG ' + (room.roundNumber || 1);
+      if (wordEl)  wordEl.textContent  = '🤖 BOT BATTLE';
+      const startAt  = room.round?.discussStartAt  || Date.now();
+      const duration = room.round?.discussDuration  || 90;
+      S.timerRemaining = Math.max(0, duration - Math.floor((Date.now() - startAt) / 1000));
+      if (S.timerInterval) clearInterval(S.timerInterval);
+      S.timerRunning = true;
+      updateTableTimer();
+      S.timerInterval = setInterval(() => {
+        S.timerRemaining = Math.max(0, S.timerRemaining - 1);
+        updateTableTimer();
+        if (S.timerRemaining === 0) { clearInterval(S.timerInterval); S.timerRunning = false; }
+      }, 1000);
       initSuspicion(players);
+      buildRoundTable(room);
       startChatListener();
       scheduleBotHints(room);
+      S.chatCollapsed = false;
+      document.querySelector('#screen-botbattle .chat-panel')?.classList.remove('collapsed');
+    } else {
+      updateTableAvatars(room);
     }
     return;
   }
