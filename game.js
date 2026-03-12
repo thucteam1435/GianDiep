@@ -1209,6 +1209,65 @@ async function doSpyGuess() {
   finally{loading(false);}
 }
 
+// ════════════════════════════════════════════════
+//  LEARN — gửi kết quả ván lên GAS để bot học
+// ════════════════════════════════════════════════
+async function sendLearnPayload(room) {
+  try {
+    const rd = room.round;
+    const players = room.playerList || Object.values(room.players || {});
+    const bots = players.filter(p => p.isBot);
+    if (!bots.length) return;
+
+    // Đọc chat của ván này
+    const chatSnap = await get(ref(db, 'rooms/' + S.roomId + '/chat')).catch(() => null);
+    const allMsgs = chatSnap?.val()
+      ? Object.values(chatSnap.val()).sort((a, b) => a.ts - b.ts)
+      : [];
+    const cutoff = rd.chatStartTs || rd.discussStartAt || 0;
+    const roundMsgs = allMsgs.filter(m => (m.ts || 0) >= cutoff);
+
+    const gameId = S.roomId + '_' + (room.roundNumber || 0);
+
+    const botsPayload = bots.map(bot => {
+      const isSpy = bot.id === rd.spyId;
+      const won = rd.result === (isSpy ? 'spy' : 'villagers');
+      const word = isSpy ? rd.wordB : rd.wordA;
+
+      // Tất cả tin bot đã gửi trong ván
+      const botMsgs = roundMsgs.filter(m => m.pid === bot.id && m.text);
+      // actions: dùng text của bot, type suy ra từ nội dung (đơn giản: mọi tin = hint)
+      // GAS sẽ tự đánh giá đúng hơn dựa trên context
+      const actions = botMsgs.map(m => ({ type: 'hint', text: m.text, ts: m.ts }));
+
+      // Bot vote ai
+      const votedFor = rd.votes?.[bot.id] || null;
+      const votedForName = votedFor ? (players.find(p => p.id === votedFor)?.name || votedFor) : null;
+
+      // Ai vote bot
+      const wasVotedBy = Object.entries(rd.votes || {})
+        .filter(([pid, tid]) => tid === bot.id)
+        .map(([pid]) => players.find(p => p.id === pid)?.name || pid);
+
+      return {
+        botName: bot.name,
+        role: isSpy ? 'spy' : 'villager',
+        won, word,
+        wordA: rd.wordA, wordB: rd.wordB,
+        actions,
+        votedFor: votedForName,
+        wasVotedBy,
+        spyId: rd.spyId
+      };
+    });
+
+    // Gửi async, không chặn UI
+    callGAS({ action: 'learn', gameId, bots: botsPayload }).catch(() => {});
+  } catch(e) {
+    console.warn('sendLearnPayload error:', e);
+  }
+}
+
 // ------------------------------------------------
 //  RESULT
 // ------------------------------------------------
@@ -1232,6 +1291,8 @@ function showResult(room) {
     <td>${p.score||0} điểm</td></tr>`).join('');
   document.getElementById('btn-next-round').style.display=room.hostId===S.playerId?'inline-flex':'none';
   nav('result',{room:S.roomId});
+  // Gửi kết quả ván để bot học — chỉ host gửi tránh duplicate
+  if (room.hostId === S.playerId) sendLearnPayload(room);
 }
 
 // ------------------------------------------------
