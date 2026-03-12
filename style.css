@@ -415,3 +415,42 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
   font-family:'Bebas Neue';font-size:.75rem;letter-spacing:.2em;color:var(--red);
   z-index:5;
 }
+/* ── BOT AVATAR — thêm vào cuối style.css ── */
+
+/* Lobby avatar wrap */
+.lobby-avatar-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--gray2);
+  font-size: 1.1rem;
+  border: 1px solid var(--gray3);
+}
+.lobby-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+.lobby-avatar-emoji {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Chat avatar ảnh */
+.chat-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
