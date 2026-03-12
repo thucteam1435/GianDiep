@@ -1027,10 +1027,13 @@ function resolveVotesTx(room) {
     } else { room.round._nextStatus='spyguess'; }
   } else {
     const active=players.filter(p=>!p.eliminated);
-    // Chỉ đếm dân thường thật (không tính bot) khi xét điều kiện thắng
-    const villagers=active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
+    // Tất cả người còn sống không phải gián điệp (kể cả bot)
+    const nonSpy=active.filter(p=>p.id!==room.round.spyId);
+    // Chỉ người thật không phải gián điệp (để xét điểm)
+    const humanVillagers=active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
     const spy=room.players[room.round.spyId];
-    if(villagers.length<=1){
+    // Gián điệp thắng khi số người còn lại (kể cả bot) <= 1
+    if(nonSpy.length<=1){
       room.round.result='spy'; room.round._nextStatus='result';
       if(spy) spy.score=(spy.score||0)+2;
     } else { room.round._nextStatus='discussing'; }
