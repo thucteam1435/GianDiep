@@ -439,7 +439,13 @@ let _lastRoom = null;
 
 function startDiscussionScreen(room) {
   const alreadyOnScreen=parseHash().screen==='discussion';
-  if (alreadyOnScreen && S.timerRunning) return;
+  // Nếu đang ở discussion rồi, chỉ update table/timer, không rebuild chat
+  if (alreadyOnScreen) {
+    _lastRoom=room;
+    updateTableAvatars(room);
+    updateDiscVoteStatus(room);
+    return;
+  }
 
   _lastRoom = room;
   S.earlyVoteChoice=null;
@@ -768,18 +774,26 @@ async function getBotVoteTarget(bot, room) {
 const REACTIONS=['😂','🤔','😱','👀','🤥','✅'];
 
 function startChatListener() {
-  if(S.chatListener){S.chatListener();S.chatListener=null;}
+  // Nếu đã có listener rồi thì không tạo thêm
+  if(S.chatListener) return;
   const r=chatRef();
   const msgs=document.getElementById('chat-messages');
   if(msgs) msgs.innerHTML='';
+  S._renderedMsgIds=new Set();
 
-  let _lastTs=0;
   const unsub=onValue(r,snap=>{
     if(!snap.exists()) return;
     const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
-    const fresh=sorted.filter(m=>(m.ts||0)>_lastTs);
+    const fresh=sorted.filter(m=>{
+      const id=m.ts+'_'+m.uid;
+      return !S._renderedMsgIds.has(id);
+    });
     if(!fresh.length) return;
-    fresh.forEach(m=>{appendChatMsg(m);if((m.ts||0)>_lastTs)_lastTs=m.ts;});
+    fresh.forEach(m=>{
+      const id=m.ts+'_'+m.uid;
+      S._renderedMsgIds.add(id);
+      appendChatMsg(m);
+    });
     if(msgs) msgs.scrollTop=msgs.scrollHeight;
     if(S.chatCollapsed){
       S.chatUnread+=fresh.length;
@@ -787,7 +801,7 @@ function startChatListener() {
       if(badge){badge.textContent=S.chatUnread>9?'9+':S.chatUnread;badge.classList.add('show');}
     }
   });
-  S.chatListener=()=>off(r,'value',unsub);
+  S.chatListener=()=>{off(r,'value',unsub);S.chatListener=null;S._renderedMsgIds=new Set();}
 }
 
 function appendChatMsg(m) {
