@@ -710,8 +710,7 @@ async function getBotVoteTarget(bot, room) {
     let chatHistory='';
     if(chatSnap.exists()){
       const msgs=Object.values(chatSnap.val()).sort((a,b)=>a.ts-b.ts).slice(-10);
-      chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join('
-');
+      chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join('\n');
     }
     const isSpy=bot.id===room.round?.spyId;
     const myWord=isSpy?room.round?.wordB:room.round?.wordA;
