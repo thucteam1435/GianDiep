@@ -7,6 +7,134 @@
 <title>🕵️ Gián Điệp</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<style>
+/* ── BOT BATTLE SCREEN ── */
+#screen-botbattle {
+  padding: 0;
+  background: #0a0a0a;
+  overflow-y: auto;
+  align-items: stretch;
+}
+#botbattle-content {
+  padding: 14px;
+  min-height: 100vh;
+  font-size: .9rem;
+}
+.bb-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 4px 10px;
+  border-bottom: 1px solid var(--gray3);
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.bb-title {
+  font-family: 'Bebas Neue';
+  font-size: 1.4rem;
+  letter-spacing: .12em;
+  color: var(--cream);
+}
+.bb-status {
+  font-size: .82rem;
+  opacity: .6;
+  flex: 1;
+  min-width: 100px;
+}
+.bb-progress {
+  font-family: 'Bebas Neue';
+  font-size: 1rem;
+  letter-spacing: .1em;
+  color: var(--gold, #d4a017);
+}
+.bb-section {
+  margin-bottom: 16px;
+}
+.bb-section-title {
+  font-family: 'Bebas Neue';
+  font-size: .85rem;
+  letter-spacing: .18em;
+  opacity: .45;
+  margin-bottom: 6px;
+}
+.bb-score-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  background: var(--gray2, #141414);
+  border: 1px solid var(--gray3, #222);
+  margin-bottom: 4px;
+  border-radius: 4px;
+}
+.bb-rank {
+  font-family: 'Bebas Neue';
+  font-size: 1rem;
+  color: #888;
+  width: 26px;
+  flex-shrink: 0;
+}
+.bb-name { flex: 1; font-size: .9rem; }
+.bb-pts  { font-family: 'Bebas Neue'; font-size: 1.1rem; color: var(--cream); }
+.bb-badge {
+  font-size: .72rem;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Bebas Neue';
+  letter-spacing: .1em;
+}
+.bb-badge.spy  { background: rgba(192,57,43,.25); color: #e74c3c; border: 1px solid rgba(192,57,43,.4); }
+.bb-badge.elim { background: rgba(80,80,80,.3); color: #888; border: 1px solid #333; }
+.bb-chat-row {
+  font-size: .82rem;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--gray3, #1e1e1e);
+  line-height: 1.5;
+  opacity: .85;
+}
+/* Suspicion heatmap */
+.bb-susp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: .75rem;
+}
+.bb-susp-table th {
+  background: #111;
+  padding: 4px 6px;
+  font-family: 'Bebas Neue';
+  letter-spacing: .08em;
+  font-size: .72rem;
+  color: #aaa;
+  text-align: center;
+}
+.bb-susp-table td {
+  padding: 4px 6px;
+  border: 1px solid #1a1a1a;
+  text-align: center;
+  font-size: .78rem;
+}
+.bb-end {
+  text-align: center;
+  padding: 32px 16px;
+}
+.bb-end-row {
+  max-width: 300px;
+  margin: 0 auto 4px;
+}
+/* Bot Battle nút ở home */
+.bb-launch-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 280px;
+  align-items: center;
+}
+.bb-launch-row input {
+  width: 56px;
+  text-align: center;
+  flex-shrink: 0;
+}
+</style>
 </head>
 <body>
 
@@ -18,6 +146,20 @@
   <div style="display:flex;flex-direction:column;gap:10px;width:100%;max-width:280px">
     <button class="btn full" onclick="nav('create')"><span>TẠO PHÒNG</span></button>
     <button class="btn full red" onclick="nav('join')"><span>THAM GIA</span></button>
+    <!-- Bot Battle launcher -->
+    <div style="display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid #2a2a2a;background:#0f0f0f;border-radius:6px">
+      <div style="font-family:'Bebas Neue';letter-spacing:.15em;font-size:.8rem;opacity:.5;text-align:center">🤖 BOT BATTLE</div>
+      <div class="bb-launch-row">
+        <span style="font-size:.8rem;opacity:.6;white-space:nowrap">Số ván:</span>
+        <input id="bot-battle-rounds" class="inp" type="number" value="10" min="1" max="50" style="padding:6px 8px;font-size:.9rem">
+        <button class="btn full" style="background:linear-gradient(135deg,#1a1a2e,#16213e);border-color:#2d4a7a;flex:1" onclick="doCreateBotBattle()">
+          <span>▶ XEM BOT ĐẤU</span>
+        </button>
+      </div>
+      <div style="font-size:.72rem;opacity:.4;text-align:center;line-height:1.4">
+        5 bot tự chơi với nhau • bạn chỉ quan sát
+      </div>
+    </div>
     <button class="btn ghost full" onclick="nav('rules')"><span>LUẬT CHƠI</span></button>
   </div>
 </div>
@@ -131,27 +273,19 @@
 
   <!-- TABLE AREA -->
   <div class="table-area" style="flex:1;position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;">
-
-    <!-- Tie banner -->
     <div class="tie-banner" id="table-tie-banner" style="display:none">⚖️ HOÀ — THẢO LUẬN THÊM!</div>
-
-    <!-- Round table -->
     <div class="round-table" id="round-table">
       <div class="round-table-surface">
         <div class="table-center-icon">🕵️</div>
         <div class="table-center-status" id="table-center-text">— người</div>
       </div>
-      <!-- Player nodes injected by JS -->
     </div>
-
-    <!-- Vote hint -->
     <div id="vote-hint-bar" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:.75rem;opacity:.4;pointer-events:none;white-space:nowrap;">
       Nhấn vào avatar để vote
     </div>
-
   </div>
 
-  <!-- BOTTOM PANEL: chỉ trạng thái vote, panel cũ ẩn để JS vẫn tìm thấy -->
+  <!-- BOTTOM PANEL -->
   <div style="background:rgba(10,10,10,.97);border-top:1px solid var(--gray3);padding:10px 14px;flex-shrink:0;">
     <div style="display:flex;align-items:center;justify-content:space-between;">
       <p class="muted" style="font-size:.82rem;margin:0" id="disc-voted-count">0/0 người đã gửi phiếu</p>
@@ -159,14 +293,13 @@
         <p style="font-family:'Bebas Neue';letter-spacing:.15em;color:var(--green);font-size:.85rem;margin:0;">✓ ĐÃ GỬI PHIẾU</p>
       </div>
     </div>
-    <!-- Giữ lại để JS không báo lỗi, nhưng ẩn hoàn toàn -->
     <div id="disc-early-vote-section" style="display:none;">
       <div class="vote-grid" id="disc-vote-grid"></div>
       <button class="btn red full" id="disc-btn-vote" onclick="doEarlyVote()" disabled></button>
     </div>
   </div>
 
-  <!-- CHAT PANEL (collapsed by default) -->
+  <!-- CHAT PANEL -->
   <div class="chat-panel collapsed">
     <div class="chat-toggle-bar" onclick="toggleChat()">
       <div class="chat-toggle-title">
@@ -185,12 +318,11 @@
 
 </div>
 
-<!-- ── VOTE (full-screen 10s) ── -->
+<!-- ── VOTE ── -->
 <div id="screen-vote" class="screen">
   <div class="logo" style="font-size:2.2rem">BỎ PHIẾU</div>
   <p class="muted">Ai là <span style="color:var(--red)">Gián Điệp</span>?</p>
-  <div style="font-family:'Bebas Neue';font-size:clamp(2.5rem,10vw,4.5rem);color:var(--cream);
-    text-shadow:0 0 15px rgba(192,57,43,.5);" id="vote-timer-display">10</div>
+  <div style="font-family:'Bebas Neue';font-size:clamp(2.5rem,10vw,4.5rem);color:var(--cream);text-shadow:0 0 15px rgba(192,57,43,.5);" id="vote-timer-display">10</div>
   <div class="divider"></div><div class="gap"></div>
   <p class="muted" style="font-size:.82rem" id="vote-status-text"></p>
   <div class="gap-sm"></div>
@@ -257,10 +389,22 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════
+     BOT BATTLE — Observer screen
+══════════════════════════════════════════════ -->
+<div id="screen-botbattle" class="screen" style="padding:0;align-items:stretch;">
+  <div id="botbattle-content">
+    <div style="text-align:center;padding:40px 20px;opacity:.4">
+      <div style="font-size:2rem">🤖</div>
+      <div style="font-family:'Bebas Neue';letter-spacing:.15em;margin-top:8px">Đang khởi động...</div>
+    </div>
+  </div>
+</div>
+
 <!-- ── TOAST + LOADING ── -->
 <div id="toast"></div>
 <div id="loading"><div class="spin"></div><div class="load-text">Đang tải</div></div>
 
-<script type="module" src="game.js?v=19"></script>
+<script type="module" src="game.js?v=20"></script>
 </body>
 </html>
