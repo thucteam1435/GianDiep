@@ -1,9 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
 
-const _voteRingStyle=document.createElement('style');
-_voteRingStyle.textContent='.avatar-vote-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid var(--red);opacity:0;transition:opacity .15s;pointer-events:none;transform:scale(.85);}'+'.avatar.vote-target{cursor:pointer;transition:box-shadow .15s;}';
-document.head.appendChild(_voteRingStyle);
+
 
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
