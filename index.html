@@ -29,7 +29,7 @@
   <div style="max-width:380px;width:100%;text-align:left;line-height:1.8;font-size:.95rem">
     <p>🕵️ <strong>Gián Điệp</strong> có từ khoá khác với dân thường.</p>
     <p>💬 Thảo luận về từ khoá, tránh nói thẳng tên.</p>
-    <p>🗳️ Vote loại người bị nghi ngờ sau mỗi lượt.</p>
+    <p>🗳️ Nhấn vào avatar để vote loại người bị nghi ngờ.</p>
     <p>🎯 Dân thường thắng nếu tìm đúng gián điệp.</p>
     <p>🦹 Gián điệp thắng nếu còn 1 mình với ≤1 dân thường, hoặc đoán đúng từ khoá sau khi bị bắt.</p>
     <p style="margin-top:14px;opacity:.5;font-size:.85rem">+1đ dân thường thắng · +2đ gián điệp thắng · +3đ gián điệp đoán đúng</p>
@@ -124,7 +124,7 @@
       <div class="tb-word-chip" id="tb-word-display">—</div>
     </div>
     <div class="tb-right">
-      <div class="tb-timer" id="tb-timer">02:00</div>
+      <div class="tb-timer" id="tb-timer">01:30</div>
       <button class="btn ghost" style="padding:6px 10px;font-size:.7rem" onclick="doLeave()">✕</button>
     </div>
   </div>
@@ -144,29 +144,26 @@
       <!-- Player nodes injected by JS -->
     </div>
 
+    <!-- Vote hint -->
+    <div id="vote-hint-bar" style="position:absolute;bottom:8px;left:50%;transform:translateX(-50%);font-size:.75rem;opacity:.4;pointer-events:none;white-space:nowrap;">
+      Nhấn vào avatar để vote
+    </div>
+
   </div>
 
-  <!-- BOTTOM PANEL: vote status + early vote -->
-  <div style="background:rgba(10,10,10,.97);border-top:1px solid var(--gray3);padding:12px 14px;flex-shrink:0;max-height:45vh;overflow-y:auto;">
-
-    <!-- Vote status -->
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+  <!-- BOTTOM PANEL: chỉ trạng thái vote, panel cũ ẩn để JS vẫn tìm thấy -->
+  <div style="background:rgba(10,10,10,.97);border-top:1px solid var(--gray3);padding:10px 14px;flex-shrink:0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
       <p class="muted" style="font-size:.82rem;margin:0" id="disc-voted-count">0/0 người đã gửi phiếu</p>
+      <div id="disc-voted-notice" style="display:none;">
+        <p style="font-family:'Bebas Neue';letter-spacing:.15em;color:var(--green);font-size:.85rem;margin:0;">✓ ĐÃ GỬI PHIẾU</p>
+      </div>
     </div>
-
-    <!-- Already voted notice -->
-    <div id="disc-voted-notice" style="display:none;text-align:center;padding:8px;">
-      <p style="font-family:'Bebas Neue';letter-spacing:.2em;color:var(--green);font-size:.95rem;">✓ ĐÃ GỬI PHIẾU — ĐANG CHỜ</p>
+    <!-- Giữ lại để JS không báo lỗi, nhưng ẩn hoàn toàn -->
+    <div id="disc-early-vote-section" style="display:none;">
+      <div class="vote-grid" id="disc-vote-grid"></div>
+      <button class="btn red full" id="disc-btn-vote" onclick="doEarlyVote()" disabled></button>
     </div>
-
-    <!-- Early vote section -->
-    <div id="disc-early-vote-section">
-      <div class="section-title" style="margin-bottom:6px">VOTE SỚM — AI BỊ NGHI?</div>
-      <div class="vote-grid" id="disc-vote-grid" style="max-width:100%;"></div>
-      <div class="gap-sm"></div>
-      <button class="btn red full" id="disc-btn-vote" onclick="doEarlyVote()" disabled>GỬI PHIẾU →</button>
-    </div>
-
   </div>
 
   <!-- CHAT PANEL (collapsed by default) -->
@@ -214,7 +211,7 @@
   </div>
   <div id="vs-tie-box" style="display:none;width:100%;max-width:360px;text-align:center;padding:14px;border:1px solid var(--gold-dim);background:rgba(212,160,23,.05);margin-bottom:8px;">
     <div style="font-family:'Bebas Neue';letter-spacing:.2em;color:var(--gold);">⚖️ HOÀ PHIẾU</div>
-    <div class="muted" style="font-size:.85rem">Thảo luận thêm 1 phút</div>
+    <div class="muted" style="font-size:.85rem">Thảo luận thêm 45 giây</div>
   </div>
   <div class="gap-sm"></div>
   <div class="section-title">SỐ PHIẾU</div>
@@ -264,6 +261,6 @@
 <div id="toast"></div>
 <div id="loading"><div class="spin"></div><div class="load-text">Đang tải</div></div>
 
-<script type="module" src="game.js"></script>
+<script type="module" src="game.js?v=6"></script>
 </body>
 </html>
