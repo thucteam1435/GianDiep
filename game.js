@@ -197,12 +197,15 @@ function handleRoomUpdate(room) {
     return;
   }
   if (status==='votesummary') {
+    S._inDiscussion=false;
     if (cur!=='votesummary') showVoteSummary(room); return;
   }
   if (status==='spyguess') {
+    S._inDiscussion=false;
     if (cur!=='spyguess') showSpyGuess(room); return;
   }
   if (status==='result') {
+    S._inDiscussion=false;
     if (cur!=='result') showResult(room); return;
   }
 }
@@ -421,7 +424,7 @@ async function doConfirmCard() {
     if(!room?.players?.[S.playerId]) return room;
     room.players[S.playerId].cardConfirmed=true;
     if(Object.values(room.players).every(p=>p.cardConfirmed)){
-      room.status='discussing'; room.round.discussStartAt=Date.now();
+      room.status='discussing'; room.round.discussStartAt=Date.now(); room.round.chatStartTs=Date.now();
     }
     return room;
   });
@@ -699,44 +702,105 @@ function setAvatarSpeaking(playerId, on) {
 // ------------------------------------------------
 //  BOT AI HINTS via Claude API
 // ------------------------------------------------
+// Các loại action bot có thể làm
 function scheduleBotHints(room) {
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   const players=room.playerList||Object.values(room.players||{});
   const bots=players.filter(p=>p.isBot&&!p.eliminated);
   if(!bots.length) return;
-  const duration=(room.round?.discussDuration||120)*1000;
+  const duration=(room.round?.discussDuration||90)*1000;
 
   bots.forEach(bot=>{
-    // Schedule 1-3 random hints per bot during discussion
-    const numHints=1+Math.floor(Math.random()*2);
-    const used=new Set();
-    for(let i=0;i<numHints;i++){
+    const numActions=2+Math.floor(Math.random()*2);
+    const usedSlots=new Set();
+    for(let i=0;i<numActions;i++){
       let delay;
-      do { delay=8000+Math.random()*(duration*0.75); } while(used.has(Math.floor(delay/5000)));
-      used.add(Math.floor(delay/5000));
-      const t=setTimeout(()=>triggerBotHint(bot,room),delay);
+      do { delay=6000+Math.random()*(duration*0.8); } while(usedSlots.has(Math.floor(delay/6000)));
+      usedSlots.add(Math.floor(delay/6000));
+      // Truyền index để action đầu luôn là hint
+      const t=setTimeout(()=>triggerBotAction(bot, i),delay);
       _botHintTimers.push(t);
     }
   });
 }
 
-async function triggerBotHint(bot, room) {
+async function triggerBotAction(bot, actionIndex) {
   if(parseHash().screen!=='discussion') return;
-  // Fix: dùng wordA/B trực tiếp, không dùng _wordAssignments (đã bị xóa)
+  const room=_lastRoom;
+  if(!room) return;
+  const botCurrent=Object.values(room.players||{}).find(p=>p.id===bot.id);
+  if(!botCurrent||botCurrent.eliminated) return;
+
   const isSpy=bot.id===room.round?.spyId;
-  const word=isSpy ? room.round?.wordB : room.round?.wordA;
+  const word=isSpy?room.round?.wordB:room.round?.wordA;
+  const players=room.playerList||Object.values(room.players||{});
+  const others=players.filter(p=>p.id!==bot.id&&!p.eliminated);
+
+  // Đọc chat gần nhất trước khi quyết định action
+  let recentChat='';
+  let recentMsgs=[];
+  try {
+    const chatSnap=await get(ref(db,'rooms/'+S.roomId+'/chat'));
+    if(chatSnap.exists()){
+      recentMsgs=Object.values(chatSnap.val()).sort((a,b)=>a.ts-b.ts).slice(-8);
+      recentChat=recentMsgs.map(m=>m.name+': '+(m.text||m.reaction||'')).join('\n');
+    }
+  } catch(e){}
+
+  // Quyết định action dựa trên context thực tế
+  let action;
+  if(actionIndex===0){
+    action='hint'; // Lượt đầu luôn hint
+  } else {
+    // Kiểm tra bot có đang bị nhắc tên trong chat không
+    const isMentioned=recentMsgs.some(m=>
+      m.pid!==bot.id && (m.text||'').toLowerCase().includes(bot.name.toLowerCase())
+    );
+    if(isMentioned){
+      // Bị nhắc tên → bào chữa (cả dân thường lẫn gián điệp)
+      action='defend';
+    } else {
+      // Không bị nhắc → ngẫu nhiên giữa hint/accuse/react
+      action=randItem(['hint','accuse','accuse','react','react']);
+    }
+  }
+
+  // Chọn suspect thông minh hơn: ưu tiên người nói nhiều nhất gần đây
+  const msgCountByPlayer={};
+  recentMsgs.forEach(m=>{ if(m.pid!==bot.id) msgCountByPlayer[m.pid]=(msgCountByPlayer[m.pid]||0)+1; });
+  const mostActive=others.sort((a,b)=>(msgCountByPlayer[b.id]||0)-(msgCountByPlayer[a.id]||0));
+  // Gián điệp nghi dân thường nói nhiều nhất; dân thường nghi người nói mơ hồ nhất (random trong top)
+  const suspect=mostActive.length ? (isSpy ? mostActive[0] : randItem(mostActive.slice(0,2)||mostActive)) : null;
+
   setAvatarSpeaking(bot.id,true);
   try {
-    const hint=await callGAS({action:'hint',botName:bot.name,word,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB});
-    showBubble(bot.id,hint,5000);
-    postBotChat(bot,hint);
+    const text=await callGAS({
+      action, botName:bot.name, word, isSpy,
+      wordA:room.round?.wordA, wordB:room.round?.wordB,
+      recentChat, suspectName:suspect?.name||'',
+      players:others.map(p=>p.name)
+    });
+    showBubble(bot.id,text,5000);
+    postBotChat(bot,text);
   } catch(e){
-    const fallbacks=isSpy?
-      ['Hmm...','Tôi biết rồi...','Thú vị...','Có vẻ quen...']:
-      ['Đúng rồi!','Tôi hiểu từ này','Khá rõ ràng','Tôi chắc chắn'];
-    const hint=randItem(fallbacks);
-    showBubble(bot.id,hint,4000);
-    postBotChat(bot,hint);
+    const sn=suspect?.name||'';
+    const sname=sn?sn:'người đó';
+    const fallbacks={
+      hint: isSpy
+        ? ['Ờ tôi hiểu từ này...','Quen quen...','Tôi biết mà']
+        : ['Rõ ràng quá còn gì','Tôi chắc 100%','Không cần đoán nhiều'],
+      accuse: sn
+        ? [sname+' nói cứ sai sai','Tôi thấy '+sname+' mơ hồ lắm',sname+' không tự tin gì cả','Nhìn vào '+sname+' đi mọi người']
+        : ['Có người đang nói mơ hồ lắm','Ai đó không biết từ này rõ'],
+      defend: isSpy
+        ? ['Oan tôi quá!','Tôi biết từ mà, đừng nghi','Sao lại nhìn tôi vậy','Không phải tôi đâu nha']
+        : ['Tôi biết từ này chắc như đinh','Nghi oan tôi rồi!','Tôi dân thường 100%','Mọi người nhầm rồi'],
+      react: ['Đúng đúng!','Ờ cũng có lý','Hmm đáng ngờ thật','Tôi cũng thấy vậy','Lạ nhỉ...'],
+    };
+    const list=fallbacks[action]||fallbacks.hint;
+    const fbText=randItem(list);
+    showBubble(bot.id,fbText,4000);
+    postBotChat(bot,fbText);
   }
   setTimeout(()=>setAvatarSpeaking(bot.id,false),5500);
 }
@@ -879,11 +943,11 @@ async function doTimeUpVoting() {
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=false;
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
-  // Smart bot vote: đọc chat trước transaction
+  // Smart bot vote: chỉ host gọi GAS để tránh spam
   const roomSnap=await get(roomRef()).catch(()=>null);
   const roomData=roomSnap?.val()||null;
   const botVotes={};
-  if(roomData){
+  if(roomData && roomData.hostId===S.playerId){
     const bots=Object.values(roomData.players||{}).filter(p=>p.isBot&&!p.eliminated);
     await Promise.all(bots.map(async bot=>{
       const t=await getBotVoteTarget(bot,roomData);
@@ -915,6 +979,9 @@ function renderVote(room) {
   const players=room.playerList||Object.values(room.players||{});
   const me=players.find(p=>p.id===S.playerId);
   const iAmEliminated=me?.eliminated||false;
+  // Người đã vote sớm thì đánh dấu đã vote, không cần vote lại
+  const alreadyEarlyVoted=!!(room.round?.votes?.[S.playerId]);
+  if(alreadyEarlyVoted) S.votedThisRound=true;
   const grid=document.getElementById('vote-grid');
   grid.innerHTML='';
 
@@ -922,6 +989,11 @@ function renderVote(room) {
     document.getElementById('btn-confirm-vote').style.display='none';
     document.getElementById('vote-waiting').style.display='none';
     renderSpectatorVotes(room);
+  } else if(alreadyEarlyVoted){
+    // Đã vote sớm — chỉ hiện trạng thái chờ
+    document.getElementById('btn-confirm-vote').style.display='none';
+    document.getElementById('vote-waiting').style.display='block';
+    document.getElementById('vote-waiting').textContent='✓ Đã bỏ phiếu — đang chờ';
   } else {
     document.getElementById('btn-confirm-vote').style.display='';
     document.getElementById('btn-confirm-vote').disabled=true;
@@ -989,7 +1061,7 @@ function updateVoteStatus(room) {
   if(el) el.textContent=`${voted}/${humans.length} người đã bỏ phiếu`;
   if(iAmEliminated){renderSpectatorVotes(room);return;}
   if(S.votedThisRound){
-    document.getElementById('btn-confirm-vote').disabled=true;
+    document.getElementById('btn-confirm-vote').style.display='none';
     document.getElementById('vote-waiting').style.display='block';
   }
 }
@@ -1082,7 +1154,7 @@ function showVoteSummary(room) {
   _summaryTimer=setInterval(()=>{
     cd--;
     if(cd>0) document.getElementById('vs-countdown').textContent=`Tiếp tục sau ${cd} giây`;
-    else { clearInterval(_summaryTimer); if(room.hostId===S.playerId) advanceAfterSummary(); }
+    else { clearInterval(_summaryTimer); advanceAfterSummary(); }
   },1000);
   nav('votesummary',{room:S.roomId});
 }
@@ -1170,11 +1242,13 @@ async function doNextRound() {
   try {
     await runTransaction(roomRef(),room=>{
       if(!room||room.status!=='result') return room;
-      room.status='waiting'; S.myWord=null; _wordPickedUp=false; save();
+      room.status='waiting';
       Object.values(room.players||{}).forEach(p=>{p.ready=!!p.isBot;p.eliminated=false;p.cardConfirmed=false;});
       room.round={votes:{},voteCounts:{},spyGuess:null,result:null};
       return room;
     });
+    // Side effects sau transaction
+    S.myWord=null; _wordPickedUp=false; save();
   } catch(e){toast('Lỗi: '+e.message);console.error(e);}
   finally{loading(false);}
 }
@@ -1182,9 +1256,13 @@ async function doNextRound() {
 async function doLeave() {
   stopListening();
   if(S.timerInterval) clearInterval(S.timerInterval);
+  if(S.voteTimerInterval) clearInterval(S.voteTimerInterval);
+  if(_summaryTimer) clearInterval(_summaryTimer);
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   const{roomId,playerId}=S;
-  S.roomId=''; S.playerId=''; S.myWord=null;
+  S.roomId=''; S.playerId=''; S.playerName=''; S.myWord=null;
+  S.earlyVoted=false; S.earlyVoteChoice=null; S.votedThisRound=false;
+  S._inDiscussion=false; S.timerRunning=false;
   try{localStorage.removeItem('gd_fb1');}catch(e){}
   if(roomId&&playerId){
     try {
