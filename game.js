@@ -1,30 +1,30 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getDatabase, ref, set, get, update, onValue, off, runTransaction, serverTimestamp }
+import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  ⚙️  CẤU HÌNH — điền vào đây
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBwl9j1V_PEP_5etnhhAUR1UUU3bfpx8uI",
   authDomain: "friendgame-63fb3.firebaseapp.com",
-  databaseURL: "https://friendgame-63fb3-default-rtdb.asia-southeast1.firebasedatabase.app",  // ← THÊM DÒNG NÀY
+  databaseURL: "https://friendgame-63fb3-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "friendgame-63fb3",
   storageBucket: "friendgame-63fb3.firebasestorage.app",
   messagingSenderId: "675984454167",
   appId: "1:675984454167:web:33e0e76b154dc1c409a252"
 };
-const ANTHROPIC_API_KEY = "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"; // sk-ant-...
+const GAS_URL = "https://script.google.com/macros/s/AKfycbwGfPyXJcgay2MdZQI0bSezduzfJZZPVv_ZIS18gK-E2xYdLL5g5ZuoXJsCvkXpYxZb/exec";
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  FIREBASE INIT
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 const app = initializeApp(FIREBASE_CONFIG);
 const db  = getDatabase(app);
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  KEYWORDS
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 let _keywords = null;
 async function getKeywords() {
   if (_keywords) return _keywords;
@@ -46,13 +46,13 @@ async function getKeywords() {
   return _keywords;
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  STATE
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 const S = {
   roomId:'', playerId:'', playerName:'', myWord:null,
   roomListener:null, chatListener:null,
-  timerInterval:null, timerRemaining:45, timerRunning:false,
+  timerInterval:null, timerRemaining:120, timerRunning:false,
   selectedVote:null, earlyVoteChoice:null, earlyVoted:false,
   votedThisRound:false, voteTimerInterval:null,
   cardFlipped:false, cardConfirmed:false, spyGuessSubmitted:false,
@@ -61,9 +61,9 @@ const S = {
 };
 let _wordPickedUp = false;
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  PERSIST
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function save() {
   try { localStorage.setItem('gd_fb1', JSON.stringify(
     {roomId:S.roomId, playerId:S.playerId, playerName:S.playerName, myWord:S.myWord}
@@ -76,9 +76,9 @@ function load() {
   } catch(e) {}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  HELPERS
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function genRoomCode() {
   const c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({length:4},()=>c[Math.floor(Math.random()*c.length)]).join('');
@@ -94,9 +94,9 @@ function toast(msg,dur=3000){
 }
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  ROUTER
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function nav(screen, params) {
   const qs = params ? '?'+Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&') : '';
   location.hash = screen + qs;
@@ -124,9 +124,9 @@ function copyJoinLink() {
                       : prompt('Copy link:',link);
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  FIREBASE HELPERS
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function roomRef(id)   { return ref(db,`rooms/${id||S.roomId}`); }
 function playerRef(rid,pid) { return ref(db,`rooms/${rid}/players/${pid}`); }
 function chatRef()     { return ref(db,`rooms/${S.roomId}/chat`); }
@@ -136,9 +136,9 @@ async function getRoom(roomId) {
   return snap.exists() ? snap.val() : null;
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  REALTIME LISTENER
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function listenRoom(roomId) {
   stopListening();
   const r = ref(db,`rooms/${roomId}`);
@@ -155,9 +155,9 @@ function stopListening() {
   if (S.chatListener) { S.chatListener(); S.chatListener=null; }
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  ROOM UPDATE HANDLER
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function handleRoomUpdate(room) {
   tryPickUpWord(room);
 
@@ -202,9 +202,9 @@ function handleRoomUpdate(room) {
   }
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  WORD PICKUP
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 async function fetchMyWord(room) {
   const saved = S.myWord;
   if (saved) { updateWordDisplay(); return; }
@@ -237,9 +237,9 @@ function tryPickUpWord(room) {
   },0);
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  CLEAN OLD ROOMS
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 async function cleanOldRooms() {
   try {
     const snap=await get(ref(db,'rooms')); if(!snap.exists()) return;
@@ -249,9 +249,9 @@ async function cleanOldRooms() {
   } catch(e){}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  CREATE / JOIN
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 async function doCreateRoom() {
   const name=document.getElementById('create-name').value.trim();
   if (!name) { toast('Hãy nhập tên!'); return; }
@@ -291,9 +291,9 @@ async function doJoinRoom() {
   finally{loading(false);}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  LOBBY
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function renderLobby(room) {
   const players=room.playerList||Object.values(room.players||{});
   document.getElementById('lobby-code').textContent=room.id;
@@ -366,30 +366,29 @@ async function doRemoveBot() {
   finally{loading(false);}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  BEGIN ROUND
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function beginRoundTx(room,keywords) {
   const row=randItem(keywords), shuffled=[...row].sort(()=>Math.random()-.5);
   const wordA=shuffled[0], wordB=shuffled[1];
   const players=Object.values(room.players), spy=randItem(players);
   room.status='playing'; room.roundNumber=(room.roundNumber||0)+1;
-  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:45};
+  room.round={wordA,wordB,spyId:spy.id,votes:{},voteCounts:{},spyGuess:null,result:null,discussStartAt:null,discussDuration:120};
   room._wordAssignments={};
   players.forEach(p=>{
     room._wordAssignments[p.id]=(p.id===spy.id)?wordB:wordA;
     p.cardConfirmed=!!p.isBot; p.ready=false; p.eliminated=false;
   });
   if(players.every(p=>p.cardConfirmed)){
-    room.status='discussing';
-    room.round.discussStartAt = serverTimestamp();
+    room.status='discussing'; room.round.discussStartAt=Date.now(); delete room._wordAssignments;
   }
   return room;
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  CARD
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function showCardScreen(room) {
   const el=document.getElementById('cf-word'); if(el) el.textContent=S.myWord||'...';
   updateCardConfirmCount(room);
@@ -417,27 +416,27 @@ async function doConfirmCard() {
     if(!room?.players?.[S.playerId]) return room;
     room.players[S.playerId].cardConfirmed=true;
     if(Object.values(room.players).every(p=>p.cardConfirmed)){
-      room.status='discussing';
-      room.round.discussStartAt = serverTimestamp();
+      room.status='discussing'; room.round.discussStartAt=Date.now();
     }
     return room;
   });
 }
 
-// ════════════════════════════════════════════════
-//  ██████╗  ██████╗ ██╗   ██╗███╗   ██╗██████╗
-//  ██╔══██╗██╔═══██╗██║   ██║████╗  ██║██╔══██╗
-//  ██████╔╝██║   ██║██║   ██║██╔██╗ ██║██║  ██║
-//  ██╔══██╗██║   ██║██║   ██║██║╚██╗██║██║  ██║
-//  ██║  ██║╚██████╔╝╚██████╔╝██║ ╚████║██████╔╝
+// ------------------------------------------------
+//  -------  ------- ---   -------   ----------
+//  --------------------   --------  -----------
+//  -----------   ------   --------- ------  ---
+//  -----------   ------   ----------------  ---
+//  ---  ------------------------ --------------
 //  TABLE SCREEN  (replaces discussion screen)
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 
 let _botHintTimers = [];
 let _lastRoom = null;
 
 function startDiscussionScreen(room) {
-  if (parseHash().screen==='discussion' && S.timerRunning) return;
+  const alreadyOnScreen=parseHash().screen==='discussion';
+  if (alreadyOnScreen && S.timerRunning) return;
 
   _lastRoom = room;
   S.earlyVoteChoice=null;
@@ -448,8 +447,8 @@ function startDiscussionScreen(room) {
   document.getElementById('tb-word-display').textContent=S.myWord||'—';
 
   // Timer
-  const startAt = room.round?.discussStartAt || 0;
-  const duration=room.round?.discussDuration||45;
+  const startAt=room.round?.discussStartAt||Date.now();
+  const duration=room.round?.discussDuration||120;
   S.timerRemaining=Math.max(0,duration-Math.floor((Date.now()-startAt)/1000));
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=true;
@@ -467,8 +466,8 @@ function startDiscussionScreen(room) {
   // Build table
   buildRoundTable(room);
 
-  // Start chat
-  startChatListener();
+  // Chỉ start chat khi vào màn hình mới
+  if(!alreadyOnScreen||!S.chatListener) startChatListener();
   scheduleBotHints(room);
 
   // Chat collapsed initially
@@ -488,7 +487,7 @@ function updateTableTimer() {
   el.classList.toggle('urgent',S.timerRemaining<=30&&S.timerRemaining>0);
 }
 
-// ── Build round table layout ──
+// -- Build round table layout --
 function buildRoundTable(room) {
   const players=room.playerList||Object.values(room.players||{});
   const n=players.length;
@@ -560,7 +559,7 @@ function updateTableAvatars(room) {
   updateDiscVoteStatus(room);
 }
 
-// ── Vote status below table ──
+// -- Vote status below table --
 function updateDiscVoteStatus(room) {
   if(!room) return;
   const players=room.playerList||Object.values(room.players||{});
@@ -636,7 +635,7 @@ async function doEarlyVote() {
   finally{loading(false);}
 }
 
-// ── Show speech bubble on avatar ──
+// -- Show speech bubble on avatar --
 function showBubble(playerId, text, dur=4000) {
   const el=document.getElementById(`bubble-${playerId}`);
   if(!el) return;
@@ -644,21 +643,21 @@ function showBubble(playerId, text, dur=4000) {
   setTimeout(()=>el.classList.remove('show'),dur);
 }
 
-// ── Mark avatar as speaking ──
+// -- Mark avatar as speaking --
 function setAvatarSpeaking(playerId, on) {
   const el=document.getElementById(`avatar-${playerId}`);
   if(el) el.classList.toggle('speaking',on);
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  BOT AI HINTS via Claude API
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function scheduleBotHints(room) {
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   const players=room.playerList||Object.values(room.players||{});
   const bots=players.filter(p=>p.isBot&&!p.eliminated);
   if(!bots.length) return;
-  const duration=(room.round?.discussDuration||45)*1000;
+  const duration=(room.round?.discussDuration||120)*1000;
 
   bots.forEach(bot=>{
     // Schedule 1-3 random hints per bot during discussion
@@ -675,31 +674,16 @@ function scheduleBotHints(room) {
 }
 
 async function triggerBotHint(bot, room) {
-  // Check still in discussion
   if(parseHash().screen!=='discussion') return;
-  let word;
-
-  if (bot.id === room.round?.spyId) {
-    word = room.round?.wordB;
-  } else {
-    word = room.round?.wordA;
-  }
+  // Fix: dùng wordA/B trực tiếp, không dùng _wordAssignments (đã bị xóa)
   const isSpy=bot.id===room.round?.spyId;
+  const word=isSpy ? room.round?.wordB : room.round?.wordA;
   setAvatarSpeaking(bot.id,true);
   try {
-    const hint = await generateBotHint(
-      S.roomId,
-      bot.name,
-      word,
-      isSpy,
-      room.round?.wordA,
-      room.round?.wordB
-    );
+    const hint=await callGAS({action:'hint',botName:bot.name,word,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB});
     showBubble(bot.id,hint,5000);
-    // Also post to chat
     postBotChat(bot,hint);
   } catch(e){
-    // Fallback hints
     const fallbacks=isSpy?
       ['Hmm...','Tôi biết rồi...','Thú vị...','Có vẻ quen...']:
       ['Đúng rồi!','Tôi hiểu từ này','Khá rõ ràng','Tôi chắc chắn'];
@@ -710,45 +694,38 @@ async function triggerBotHint(bot, room) {
   setTimeout(()=>setAvatarSpeaking(bot.id,false),5500);
 }
 
-async function generateBotHint(roomId, botName, word, isSpy, wordA, wordB) {
-
-  const chatSnap = await get(ref(db,`rooms/${roomId}/chat`));
-  let history = [];
-
-  if(chatSnap.exists()){
-    const msgs = Object.values(chatSnap.val())
-      .sort((a,b)=>a.ts-b.ts)
-      .slice(-6); // 6 tin gần nhất
-
-    history = msgs.map(m => `${m.name}: ${m.text || m.reaction}`).join("\n");
-  }
-
-  const resp = await fetch(
-    "https://script.google.com/macros/s/AKfycbwGfPyXJcgay2MdZQI0bSezduzfJZZPVv_ZIS18gK-E2xYdLL5g5ZuoXJsCvkXpYxZb/exec",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "text/plain"
-      },
-      body: JSON.stringify({
-        roomId,
-        botName,
-        word,
-        isSpy,
-        wordA,
-        wordB,
-        history
-      })
-    }
-  );
-
-  const data = await resp.json();
-  return data.text?.trim() || "...";
+async function callGAS(payload) {
+  const resp=await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)});
+  if(!resp.ok) throw new Error('GAS '+resp.status);
+  const data=await resp.json();
+  return data.text?.trim()||'...';
 }
 
-// ════════════════════════════════════════════════
+async function getBotVoteTarget(bot, room) {
+  const players=Object.values(room.players||{});
+  const candidates=players.filter(p=>p.id!==bot.id&&!p.eliminated);
+  if(!candidates.length) return null;
+  try {
+    const chatSnap=await get(ref(db,`rooms/${S.roomId}/chat`));
+    let chatHistory='';
+    if(chatSnap.exists()){
+      const msgs=Object.values(chatSnap.val()).sort((a,b)=>a.ts-b.ts).slice(-10);
+      chatHistory=msgs.map(m=>`${m.name}: ${m.text||m.reaction||''}`).join('
+');
+    }
+    const isSpy=bot.id===room.round?.spyId;
+    const myWord=isSpy?room.round?.wordB:room.round?.wordA;
+    const result=await callGAS({action:'vote',botName:bot.name,myWord,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB,candidates:candidates.map(p=>p.name),chatHistory});
+    const target=candidates.find(p=>p.name===result?.trim());
+    return target?.id||randItem(candidates).id;
+  } catch(e){
+    return randItem(candidates).id;
+  }
+}
+
+// ------------------------------------------------
 //  CHAT
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 const REACTIONS=['😂','🤔','😱','👀','🤥','✅'];
 
 function startChatListener() {
@@ -757,18 +734,16 @@ function startChatListener() {
   const msgs=document.getElementById('chat-messages');
   if(msgs) msgs.innerHTML='';
 
+  let _lastTs=0;
   const unsub=onValue(r,snap=>{
     if(!snap.exists()) return;
-    const allMsgs=snap.val()||{};
-    const sorted=Object.values(allMsgs).sort((a,b)=>a.ts-b.ts);
-    if(msgs){
-      msgs.innerHTML='';
-      sorted.forEach(m=>appendChatMsg(m));
-      msgs.scrollTop=msgs.scrollHeight;
-    }
-    // Unread badge when collapsed
+    const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
+    const fresh=sorted.filter(m=>(m.ts||0)>_lastTs);
+    if(!fresh.length) return;
+    fresh.forEach(m=>{appendChatMsg(m);if((m.ts||0)>_lastTs)_lastTs=m.ts;});
+    if(msgs) msgs.scrollTop=msgs.scrollHeight;
     if(S.chatCollapsed){
-      S.chatUnread++;
+      S.chatUnread+=fresh.length;
       const badge=document.getElementById('chat-unread-badge');
       if(badge){badge.textContent=S.chatUnread>9?'9+':S.chatUnread;badge.classList.add('show');}
     }
@@ -841,13 +816,24 @@ function toggleChat() {
   }
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  TIME-UP VOTING
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 async function doTimeUpVoting() {
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=false;
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
+  // Smart bot vote: đọc chat trước transaction
+  const roomSnap=await get(roomRef()).catch(()=>null);
+  const roomData=roomSnap?.val()||null;
+  const botVotes={};
+  if(roomData){
+    const bots=Object.values(roomData.players||{}).filter(p=>p.isBot&&!p.eliminated);
+    await Promise.all(bots.map(async bot=>{
+      const t=await getBotVoteTarget(bot,roomData);
+      if(t) botVotes[bot.id]=t;
+    }));
+  }
   try {
     await runTransaction(roomRef(),room=>{
       if(!room||room.status!=='discussing') return room;
@@ -857,7 +843,7 @@ async function doTimeUpVoting() {
       const players=Object.values(room.players||{});
       players.filter(p=>p.isBot&&!p.eliminated).forEach(bot=>{
         const others=players.filter(p=>p.id!==bot.id&&!p.eliminated);
-        if(others.length) room.round.votes[bot.id]=randItem(others).id;
+        room.round.votes[bot.id]=botVotes[bot.id]||(others.length?randItem(others).id:null);
       });
       room.round.voteDeadline=Date.now()+10000;
       return room;
@@ -865,9 +851,9 @@ async function doTimeUpVoting() {
   } catch(e){console.error(e);}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  VOTE SCREEN (overlay style, 10s timer)
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function renderVote(room) {
   S.selectedVote=null;
   const players=room.playerList||Object.values(room.players||{});
@@ -970,9 +956,9 @@ async function doVote() {
   finally{loading(false);}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  RESOLVE VOTES
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function resolveVotesTx(room) {
   const players=Object.values(room.players||{});
   const vc={};
@@ -1002,7 +988,8 @@ function resolveVotesTx(room) {
     } else { room.round._nextStatus='spyguess'; }
   } else {
     const active=players.filter(p=>!p.eliminated);
-    const villagers=active.filter(p=>p.id!==room.round.spyId);
+    // Chỉ đếm dân thường thật (không tính bot) khi xét điều kiện thắng
+    const villagers=active.filter(p=>p.id!==room.round.spyId&&!p.isBot);
     const spy=room.players[room.round.spyId];
     if(villagers.length<=1){
       room.round.result='spy'; room.round._nextStatus='result';
@@ -1012,9 +999,9 @@ function resolveVotesTx(room) {
   room.status='votesummary';
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  VOTE SUMMARY
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 let _summaryTimer=null;
 
 function showVoteSummary(room) {
@@ -1047,17 +1034,17 @@ async function advanceAfterSummary() {
     room.status=room.round._nextStatus||'discussing';
     delete room.round._nextStatus;
     if(room.status==='discussing'){
-      room.round.discussStartAt = serverTimestamp();
-      room.round.discussDuration=room.round.isTie?30:45;
+      room.round.discussStartAt=Date.now();
+      room.round.discussDuration=room.round.isTie?60:120;
       room.round.votes={}; room.round.voteCounts={}; room.round.isTie=false;
     }
     return room;
   });
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  SPY GUESS
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function showSpyGuess(room) {
   const players=room.playerList||Object.values(room.players||{});
   const spy=players.find(p=>p.id===room.round.spyId);
@@ -1090,9 +1077,9 @@ async function doSpyGuess() {
   finally{loading(false);}
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  RESULT
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 function showResult(room) {
   const rd=room.round, players=room.playerList||Object.values(room.players||{});
   const isWin=rd.result==='villagers';
@@ -1115,9 +1102,9 @@ function showResult(room) {
   nav('result',{room:S.roomId});
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  NEXT ROUND / LEAVE
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 async function doNextRound() {
   loading(true);
   try {
@@ -1154,9 +1141,9 @@ async function doLeave() {
   nav('home');
 }
 
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 //  INIT
-// ════════════════════════════════════════════════
+// ------------------------------------------------
 load();
 const{screen:initScreen,params:initParams}=parseHash();
 showScreen(initScreen);
@@ -1174,7 +1161,7 @@ if(rp) REACTIONS.forEach(e=>{
   rp.appendChild(btn);
 });
 
-// ── EXPOSE GLOBALS ──
+// -- EXPOSE GLOBALS --
 window.nav=nav; window.copyJoinLink=copyJoinLink; window.flipCard=flipCard;
 window.doCreateRoom=doCreateRoom; window.doJoinRoom=doJoinRoom;
 window.doToggleReady=doToggleReady; window.doAddBot=doAddBot; window.doRemoveBot=doRemoveBot;
