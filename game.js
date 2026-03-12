@@ -384,7 +384,7 @@ function beginRoundTx(room,keywords) {
     p.cardConfirmed=!!p.isBot; p.ready=false; p.eliminated=false;
   });
   if(players.every(p=>p.cardConfirmed)){
-    room.status='discussing'; room.round.discussStartAt=Date.now(); delete room._wordAssignments;
+    room.status='discussing'; room.round.discussStartAt=Date.now(); room.round.chatStartTs=Date.now(); delete room._wordAssignments;
   }
   return room;
 }
@@ -774,26 +774,27 @@ async function getBotVoteTarget(bot, room) {
 const REACTIONS=['😂','🤔','😱','👀','🤥','✅'];
 
 function startChatListener() {
-  // Nếu đã có listener rồi thì không tạo thêm
-  if(S.chatListener) return;
+  // Hủy listener cũ nếu có
+  if(S.chatListener){S.chatListener();}
   const r=chatRef();
   const msgs=document.getElementById('chat-messages');
   if(msgs) msgs.innerHTML='';
-  S._renderedMsgIds=new Set();
+  // Chỉ hiện tin từ đầu vòng hiện tại
+  const cutoff=_lastRoom?.round?.chatStartTs||_lastRoom?.round?.discussStartAt||0;
+  let _renderedIds=new Set();
 
   const unsub=onValue(r,snap=>{
     if(!snap.exists()) return;
     const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
     const fresh=sorted.filter(m=>{
-      const id=m.ts+'_'+m.uid;
-      return !S._renderedMsgIds.has(id);
+      if((m.ts||0)<cutoff) return false;
+      const id=m.ts+'_'+(m.uid||m.pid||'');
+      if(_renderedIds.has(id)) return false;
+      _renderedIds.add(id);
+      return true;
     });
     if(!fresh.length) return;
-    fresh.forEach(m=>{
-      const id=m.ts+'_'+m.uid;
-      S._renderedMsgIds.add(id);
-      appendChatMsg(m);
-    });
+    fresh.forEach(m=>appendChatMsg(m));
     if(msgs) msgs.scrollTop=msgs.scrollHeight;
     if(S.chatCollapsed){
       S.chatUnread+=fresh.length;
@@ -801,7 +802,7 @@ function startChatListener() {
       if(badge){badge.textContent=S.chatUnread>9?'9+':S.chatUnread;badge.classList.add('show');}
     }
   });
-  S.chatListener=()=>{off(r,'value',unsub);S.chatListener=null;S._renderedMsgIds=new Set();}
+  S.chatListener=()=>{off(r,'value',unsub);S.chatListener=null;}
 }
 
 function appendChatMsg(m) {
@@ -1091,6 +1092,7 @@ async function advanceAfterSummary() {
     delete room.round._nextStatus;
     if(room.status==='discussing'){
       room.round.discussStartAt=Date.now();
+      if(!room.round.isTie) room.round.chatStartTs=Date.now();
       room.round.discussDuration=room.round.isTie?45:90;
       room.round.votes={}; room.round.voteCounts={}; room.round.isTie=false;
     }
