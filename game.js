@@ -111,14 +111,28 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 // ------------------------------------------------
 //  AVATAR HELPER
 // ------------------------------------------------
-function makeAvatarHtml(player, size='36px', forTable=false) {
+function fixDriveUrl(url) {
+  if (!url) return '';
+  // Chuyển uc?export=view sang thumbnail (tránh redirect CORS)
+  const m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w100`;
+  // Dạng /file/d/FILE_ID/
+  const m2 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w100`;
+  return url;
+}
+
+function makeAvatarHtml(player, size, forTable) {
+  size = size || '36px';
   const defaultEmoji = player.isBot ? '🤖' : '😊';
-  if (player.avatarUrl) {
+  const url = fixDriveUrl(player.avatarUrl || '');
+
+  if (url) {
     if (forTable) {
-      return `<img src="${player.avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+      return `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"
         onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\\'font-size:1.2rem\\'>${defaultEmoji}</span>')">`;
     }
-    return `<img src="${player.avatarUrl}" class="lobby-avatar-img"
+    return `<img src="${url}" class="lobby-avatar-img"
       onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
       <div class="lobby-avatar-emoji" style="display:none">${defaultEmoji}</div>`;
   }
@@ -931,7 +945,8 @@ function appendChatMsg(m) {
   const playerData = Object.values(_lastRoom?.players||{}).find(p=>p.id===m.pid);
   let chatAvatarHtml;
   if (playerData?.avatarUrl) {
-    chatAvatarHtml = `<img src="${playerData.avatarUrl}" class="chat-avatar-img"
+    const fixedUrl = fixDriveUrl(playerData.avatarUrl);
+    chatAvatarHtml = `<img src="${fixedUrl}" class="chat-avatar-img"
       onerror="this.outerHTML='<span>${m.isBot?'🤖':'😊'}</span>'">`;
   } else {
     chatAvatarHtml = m.isBot ? '🤖' : '😊';
