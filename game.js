@@ -1,18 +1,9 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
 
-// Inject vote-ring CSS
-(function(){
-  const s=document.createElement('style');
-  s.textContent=`
-    .avatar-vote-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid var(--red);opacity:0;transition:opacity .15s,transform .15s;pointer-events:none;transform:scale(.85);}
-    .avatar.vote-target:hover .avatar-vote-ring{opacity:.4;transform:scale(1);}
-    .avatar[style*="box-shadow"] .avatar-vote-ring{opacity:1!important;transform:scale(1)!important;}
-    .avatar.vote-target{transition:box-shadow .15s;}
-    .vote-target-name{color:var(--cream);opacity:.9;}
-  `;
-  document.head.appendChild(s);
-})();
+const _voteRingStyle=document.createElement('style');
+_voteRingStyle.textContent='.avatar-vote-ring{position:absolute;inset:-4px;border-radius:50%;border:3px solid var(--red);opacity:0;transition:opacity .15s;pointer-events:none;transform:scale(.85);}'+'.avatar.vote-target{cursor:pointer;transition:box-shadow .15s;}';
+document.head.appendChild(_voteRingStyle);
 
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
