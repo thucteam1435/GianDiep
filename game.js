@@ -145,13 +145,13 @@ async function getRoom(roomId) {
 function listenRoom(roomId) {
   stopListening();
   const r = ref(db,`rooms/${roomId}`);
-  const unsub = onValue(r, snap => {
+  const unsubRoom = onValue(r, snap => {
     if (!snap.exists()) { toast('Phòng không tồn tại.'); doLeave(); return; }
     const room = snap.val();
     room.playerList = room.players ? Object.values(room.players) : [];
     handleRoomUpdate(room);
   });
-  S.roomListener = () => off(r,'value',unsub);
+  S.roomListener = () => { unsubRoom(); S.roomListener=null; };
 }
 function stopListening() {
   if (S.roomListener) { S.roomListener(); S.roomListener=null; }
@@ -784,7 +784,8 @@ function startChatListener() {
   const cutoff=_lastRoom?.round?.chatStartTs||_lastRoom?.round?.discussStartAt||0;
   let _renderedIds=new Set();
 
-  const unsub=onValue(r,snap=>{
+  // onValue() trong Firebase v10 trả về hàm unsubscribe trực tiếp
+  const unsubscribe=onValue(r,snap=>{
     if(!snap.exists()) return;
     const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
     const fresh=sorted.filter(m=>{
@@ -803,7 +804,7 @@ function startChatListener() {
       if(badge){badge.textContent=S.chatUnread>9?'9+':S.chatUnread;badge.classList.add('show');}
     }
   });
-  S.chatListener=()=>{off(r,'value',unsub);S.chatListener=null;}
+  S.chatListener=()=>{unsubscribe();S.chatListener=null;}
 }
 
 function appendChatMsg(m) {
