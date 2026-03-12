@@ -54,7 +54,7 @@ async function getKeywords() {
 // ------------------------------------------------
 const S = {
   roomId:'', playerId:'', playerName:'', myWord:null,
-  roomListener:null, chatListener:null,
+  roomListener:null, chatListener:null, _inDiscussion:false,
   timerInterval:null, timerRemaining:120, timerRunning:false,
   selectedVote:null, earlyVoteChoice:null, earlyVoted:false,
   votedThisRound:false, voteTimerInterval:null,
@@ -156,6 +156,7 @@ function listenRoom(roomId) {
 function stopListening() {
   if (S.roomListener) { S.roomListener(); S.roomListener=null; }
   if (S.chatListener) { S.chatListener(); S.chatListener=null; }
+  S._inDiscussion=false;
 }
 
 // ------------------------------------------------
@@ -183,11 +184,12 @@ function handleRoomUpdate(room) {
     return;
   }
   if (status==='discussing') {
-    if (cur!=='discussion') { startDiscussionScreen(room); }
+    if (!S._inDiscussion) { startDiscussionScreen(room); }
     else { updateTableAvatars(room); updateDiscVoteStatus(room); }
     return;
   }
   if (status==='voting') {
+    S._inDiscussion=false;
     if (cur!=='vote') {
       S.votedThisRound=false;
       renderVote(room); nav('vote',{room:S.roomId}); startVoteTimer(room);
@@ -438,14 +440,13 @@ let _botHintTimers = [];
 let _lastRoom = null;
 
 function startDiscussionScreen(room) {
-  const alreadyOnScreen=parseHash().screen==='discussion';
-  // Nếu đang ở discussion rồi, chỉ update table/timer, không rebuild chat
-  if (alreadyOnScreen) {
+  if (S._inDiscussion) {
     _lastRoom=room;
     updateTableAvatars(room);
     updateDiscVoteStatus(room);
     return;
   }
+  S._inDiscussion=true;
 
   _lastRoom = room;
   S.earlyVoteChoice=null;
@@ -476,7 +477,7 @@ function startDiscussionScreen(room) {
   buildRoundTable(room);
 
   // Chỉ start chat khi vào màn hình mới
-  if(!alreadyOnScreen||!S.chatListener) startChatListener();
+  startChatListener();
   scheduleBotHints(room);
 
   // Chat collapsed initially
