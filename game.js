@@ -742,6 +742,10 @@ function renderBotBattleObserver(room) {
       <div class="bb-status">${statusLabel}</div>
       <div class="bb-progress">Ván <b>${done+1}</b> / ${max}</div>
     </div>
+    ${timerHTML}
+    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin:12px 0;padding:10px;background:rgba(255,255,255,0.05);border-radius:10px;">
+      ${miniAvatars}
+    </div>
     ${suspHTML}
     ${scoreHTML}
     ${chatHTML}
