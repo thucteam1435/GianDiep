@@ -792,9 +792,24 @@ async function triggerBotAction(bot, actionIndex) {
   // Chọn suspect thông minh hơn: ưu tiên người nói nhiều nhất gần đây
   const msgCountByPlayer={};
   recentMsgs.forEach(m=>{ if(m.pid!==bot.id) msgCountByPlayer[m.pid]=(msgCountByPlayer[m.pid]||0)+1; });
-  const mostActive=others.sort((a,b)=>(msgCountByPlayer[b.id]||0)-(msgCountByPlayer[a.id]||0));
-  // Gián điệp nghi dân thường nói nhiều nhất; dân thường nghi người nói mơ hồ nhất (random trong top)
-  const suspect=mostActive.length ? (isSpy ? mostActive[0] : randItem(mostActive.slice(0,2)||mostActive)) : null;
+
+  // Chọn suspect dựa trên suspicion map (nếu đủ bằng chứng) hoặc mostActive
+  let suspect = null;
+  if (action === 'accuse') {
+    const suspSuspect = getTopSuspect(bot.id, others);
+    const suspScore = (_suspicionMap[bot.id]||{})[suspSuspect?.id] ?? 10;
+    if (suspSuspect && suspScore > 20) {
+      suspect = suspSuspect; // Tố cáo người đang bị nghi nhất
+    } else {
+      // Chưa đủ bằng chứng → tố cáo người nói nhiều nhất (heuristic)
+      const mostActive = [...others].sort((a,b)=>(msgCountByPlayer[b.id]||0)-(msgCountByPlayer[a.id]||0));
+      suspect = mostActive[0] || null;
+    }
+  } else {
+    // Cho hint/react/defend: suspect không quan trọng, chọn ngẫu nhiên
+    const mostActive = [...others].sort((a,b)=>(msgCountByPlayer[b.id]||0)-(msgCountByPlayer[a.id]||0));
+    suspect = mostActive.length ? randItem(mostActive.slice(0, Math.min(2, mostActive.length))) : null;
+  }
 
   const _isBB = S.isBotBattle;
   if (_isBB) setBotSpeaking(bot.id,true); else setAvatarSpeaking(bot.id,true);
@@ -807,13 +822,21 @@ async function triggerBotAction(bot, actionIndex) {
     });
     if (_isBB) showBotBubble(bot.id,text,5000); else showBubble(bot.id,text,5000);
     postBotChat(bot,text);
-    // Cập nhật suspicion map để vote thông minh hơn
+    // Cập nhật suspicion map — bot vừa nói, tất cả người khác quan sát
+    // (startChatListener cũng làm điều này khi nhận Firebase event,
+    //  nhưng gọi trực tiếp ở đây để đảm bảo không bị delay)
     updateSuspicion(
       bot.id, action, text,
       suspect?.id || null,
       players.map(p=>p.id),
       room.round
     );
+    // Nếu là accuse: bot đang tố cáo suspect → bot tự tăng suspicion với suspect
+    if (action === 'accuse' && suspect) {
+      if (!_suspicionMap[bot.id]) _suspicionMap[bot.id] = {};
+      const cur = _suspicionMap[bot.id][suspect.id] ?? 10;
+      _suspicionMap[bot.id][suspect.id] = Math.min(100, cur + 15);
+    }
   } catch(e){
     const sn=suspect?.name||'';
     const sname=sn?sn:'người đó';
@@ -857,7 +880,18 @@ async function getBotVoteTarget(bot, room) {
     }
     const isSpy=bot.id===room.round?.spyId;
     const myWord=isSpy?room.round?.wordB:room.round?.wordA;
-    const result=await callGAS({action:'vote',botName:bot.name,myWord,isSpy,wordA:room.round?.wordA,wordB:room.round?.wordB,candidates:candidates.map(p=>p.name),chatHistory});
+    // Serialize suspicion scores của bot này về từng candidate
+    const suspicionScores = {};
+    const botSusp = _suspicionMap[bot.id] || {};
+    candidates.forEach(p => {
+      suspicionScores[p.name] = Math.round(botSusp[p.id] ?? 10);
+    });
+    const result=await callGAS({
+      action:'vote', botName:bot.name, myWord, isSpy,
+      wordA:room.round?.wordA, wordB:room.round?.wordB,
+      candidates:candidates.map(p=>p.name),
+      chatHistory, suspicionScores
+    });
     const target=candidates.find(p=>p.name===result?.trim());
     return target?.id||randItem(candidates).id;
   } catch(e){
@@ -892,7 +926,28 @@ function startChatListener() {
       return true;
     });
     if(!fresh.length) return;
-    fresh.forEach(m=>appendChatMsg(m));
+    fresh.forEach(m=>{
+      appendChatMsg(m);
+      // Bot battle: mỗi tin nhắn mới → tất cả bot cập nhật suspicion về người nói
+      if(S.isBotBattle && m.pid && m.text && _lastRoom) {
+        const allPlayers = Object.values(_lastRoom.players||{});
+        const allIds = allPlayers.map(p=>p.id);
+        // Đoán actionType từ nội dung chat (heuristic)
+        let actionType = 'hint';
+        const t = (m.text||'').toLowerCase();
+        if (/nghi|tố|đó là|chắc chắn|rõ ràng là/.test(t) && allPlayers.some(p=>p.name&&t.includes(p.name.toLowerCase()))) actionType = 'accuse';
+        else if (/oan|không phải tôi|tôi biết|mình biết|bào chữa|sai rồi/.test(t)) actionType = 'defend';
+        else if (t.split(/\s+/).length < 5) actionType = 'react';
+
+        // Tìm targetId nếu là accuse
+        let targetId = null;
+        if (actionType === 'accuse') {
+          const mentioned = allPlayers.find(p => p.id !== m.pid && p.name && t.includes(p.name.toLowerCase()));
+          if (mentioned) targetId = mentioned.id;
+        }
+        updateSuspicion(m.pid, actionType, m.text, targetId, allIds, _lastRoom.round);
+      }
+    });
     if(msgs) msgs.scrollTop=msgs.scrollHeight;
     if(S.chatCollapsed){
       S.chatUnread+=fresh.length;
@@ -975,7 +1030,44 @@ async function doTimeUpVoting() {
   if(S.timerInterval) clearInterval(S.timerInterval);
   S.timerRunning=false;
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
-  // Smart bot vote: chỉ host gọi GAS để tránh spam
+
+  // Bot battle: tính vote ngay trên client (observer là người duy nhất theo dõi)
+  if (S.isBotBattle) {
+    try {
+      const snap = await get(roomRef());
+      const roomData = snap.val();
+      if (!roomData || roomData.status !== 'discussing') return;
+      const players = Object.values(roomData.players||{});
+      // Thu thập vote thông minh từ suspicion map
+      const botVotes = {};
+      players.filter(p=>p.isBot&&!p.eliminated).forEach(bot=>{
+        const candidates = players.filter(p=>p.id!==bot.id&&!p.eliminated);
+        if (!candidates.length) return;
+        const topSusp = getTopSuspect(bot.id, candidates);
+        botVotes[bot.id] = topSusp ? topSusp.id : randItem(candidates).id;
+      });
+      await runTransaction(roomRef(), room => {
+        if (!room || room.status !== 'discussing') return room;
+        room.status = 'voting';
+        room.round.votes = {...(room.round.earlyVotes||{})};
+        delete room.round.earlyVotes;
+        // Ghi vote của tất cả bot vào transaction
+        Object.keys(botVotes).forEach(bid => {
+          room.round.votes[bid] = botVotes[bid];
+        });
+        // Nếu tất cả đã vote → resolve ngay
+        const active = Object.values(room.players).filter(p=>!p.eliminated);
+        if (active.every(p => room.round.votes[p.id])) resolveVotesTx(room);
+        else room.round.voteDeadline = Date.now()+8000;
+        return room;
+      });
+      _autoBotVoteDone = true; // đánh dấu đã vote để handleBotBattleFlow không gọi lại
+      console.log('doTimeUpVoting BB OK:', botVotes);
+    } catch(e) { console.error('doTimeUpVoting BB', e); }
+    return;
+  }
+
+  // Normal game: chỉ host gọi GAS
   const roomSnap=await get(roomRef()).catch(()=>null);
   const roomData=roomSnap?.val()||null;
   const botVotes={};
@@ -1412,41 +1504,87 @@ function initSuspicion(players) {
 }
 
 function updateSuspicion(speakerId, actionType, text, targetId, allPlayerIds, round) {
-  const lower = (text || '').toLowerCase();
-  const wordB = (round?.wordB || '').toLowerCase();
+  if (!text || !speakerId) return;
+  const lower  = (text || '').toLowerCase();
+  const wordB  = (round?.wordB || '').toLowerCase(); // từ của spy
+  const wordA  = (round?.wordA || '').toLowerCase(); // từ của dân
+
+  // Tất cả người quan sát (không phải chính người nói) cập nhật nghi ngờ về người nói
   allPlayerIds.forEach(observerId => {
     if (observerId === speakerId) return;
     if (!_suspicionMap[observerId]) _suspicionMap[observerId] = {};
     let delta = 0;
+
     if (actionType === 'hint') {
       const wc = text.trim().split(/\s+/).length;
-      if (wc < 4)  delta += 8;
-      if (wc > 14) delta += 4;
-      if (wordB && lower.includes(wordB)) delta += 25;
-      if (/\b(thường|hay|dùng để|màu|hình|mùi|vị|cảm giác|dành cho)\b/i.test(text)) delta -= 5;
+      // Câu quá ngắn (< 4 từ) → mơ hồ → nghi hơn
+      if (wc < 4)  delta += 12;
+      // Câu vừa đủ, tự nhiên → ít nghi hơn
+      if (wc >= 5 && wc <= 10) delta -= 5;
+      // Câu quá dài → có thể đang nói quá nhiều để che đậy
+      if (wc > 14) delta += 6;
+      // Dùng từ của spy → rất đáng nghi
+      if (wordB && lower.includes(wordB)) delta += 40;
+      // Mô tả cụ thể, rõ ràng (dân thường hay làm vậy) → ít nghi
+      if (/(thường|hay|dùng để|màu|hình|mùi|vị|cảm giác|dành cho|trông như|giống như)/i.test(text)) delta -= 8;
+      // Nói mơ hồ kiểu spy → nghi hơn
+      if (/(ừ|ờ|biết rồi|tôi hiểu|tôi biết|đúng vậy|có lý)/i.test(text)) delta += 10;
+      // Nếu hint không liên quan từ khoá dân (heuristic: không chứa bất kỳ từ gợi ý nào)
     }
+
+    if (actionType === 'accuse') {
+      // Người hay tố cáo → có thể đang cố đánh lạc hướng (spy tactic)
+      delta += 4;
+    }
+
     if (actionType === 'defend') {
-      delta -= 6;
-      if (wordB && lower.includes(wordB)) delta += 30;
+      // Người đang bào chữa → giảm nghi với người khác (họ đang tự bảo vệ)
+      delta -= 8;
+      // Nhưng nếu bào chữa nhắc từ của spy → rất đáng nghi
+      if (wordB && lower.includes(wordB)) delta += 35;
+      // Bào chữa rất tự tin, logic → dân thường hay làm vậy
+      if (/(rõ ràng|chứng minh|logic|tôi đã|mình đã)/i.test(text)) delta -= 5;
     }
-    if (actionType === 'accuse') delta += 2;
+
+    if (actionType === 'react') {
+      // React ngắn, vô nghĩa → hơi đáng nghi
+      if (text.trim().split(/\s+/).length < 3) delta += 5;
+    }
+
     const cur = _suspicionMap[observerId][speakerId] ?? 10;
     _suspicionMap[observerId][speakerId] = Math.max(0, Math.min(100, cur + delta));
   });
-  if (actionType === 'accuse' && targetId && _suspicionMap[targetId]) {
-    const cur = _suspicionMap[targetId][speakerId] ?? 10;
-    _suspicionMap[targetId][speakerId] = Math.max(0, Math.min(100, cur + 5));
+
+  // Nếu ai đó tố cáo X → những người quan sát cũng tăng nghi ngờ về X một chút
+  if (actionType === 'accuse' && targetId) {
+    allPlayerIds.forEach(observerId => {
+      if (observerId === speakerId || observerId === targetId) return;
+      if (!_suspicionMap[observerId]) _suspicionMap[observerId] = {};
+      const cur = _suspicionMap[observerId][targetId] ?? 10;
+      _suspicionMap[observerId][targetId] = Math.max(0, Math.min(100, cur + 8));
+    });
+    // Người bị tố cáo cũng tăng nghi ngờ về người tố cáo (có thể spy đang chuyển hướng)
+    if (_suspicionMap[targetId]) {
+      const cur = _suspicionMap[targetId][speakerId] ?? 10;
+      _suspicionMap[targetId][speakerId] = Math.max(0, Math.min(100, cur + 6));
+    }
   }
 }
 
 function getTopSuspect(botId, candidates) {
   const scores = _suspicionMap[botId] || {};
-  let best = null, bestScore = -1;
-  candidates.forEach(p => {
-    const s = scores[p.id] ?? 10;
-    if (s > bestScore) { bestScore = s; best = p; }
-  });
-  return best;
+  // Tính score + thêm nhiễu nhỏ để các bot không vote y hệt nhau
+  const ranked = candidates.map(p => ({
+    player: p,
+    score: (scores[p.id] ?? 10) + Math.random() * 5
+  })).sort((a,b) => b.score - a.score);
+
+  const top = ranked[0];
+  // Chỉ vote chắc chắn nếu suspicion > 25 (đã quan sát đủ hành vi đáng nghi)
+  if (top && top.score > 25) return top.player;
+  // Nếu chưa đủ bằng chứng → chọn ngẫu nhiên trong top 2 (không biết ai)
+  const pool = ranked.slice(0, Math.min(2, ranked.length));
+  return pool[Math.floor(Math.random() * pool.length)]?.player || null;
 }
 
 function serializeSuspicion(botId, players) {
@@ -1472,13 +1610,35 @@ async function doCreateBotBattle() {
     save();
 
     const kw = await getKeywords();
-    const botNames = ["Daydream","Kizuna","Anubis","Teth","Daleth","Fire","Water","Air","Melan","Earth"];
-    const chosen   = [...botNames].sort(()=>Math.random()-.5).slice(0,5);
-    const players  = {};
-    chosen.forEach(name => {
-      const botId = 'bot_' + genId();
-      players[botId] = { id:botId, name, ready:true, score:0, isBot:true, cardConfirmed:true, avatarUrl:'' };
-    });
+
+    // Lấy bot roster từ GAS để có đúng tên + avatarUrl đã cài
+    const players = {};
+    const usedNames = [];
+    for (let i = 0; i < 5; i++) {
+      try {
+        const resp = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: {'Content-Type':'text/plain'},
+          body: JSON.stringify({ action:'bot_roster', usedNames })
+        });
+        const data = await resp.json();
+        const botId = 'bot_' + genId();
+        const name  = data.name || ('Bot '+(i+1));
+        usedNames.push(name);
+        players[botId] = {
+          id: botId, name, ready:true, score:0,
+          isBot:true, cardConfirmed:true,
+          avatarUrl: data.avatarUrl || ''
+        };
+      } catch(e) {
+        // Fallback nếu GAS lỗi
+        const fallbacks = ["Daydream","Kizuna","Anubis","Teth","Daleth","Fire","Water","Air","Melan","Earth"];
+        const name = fallbacks.filter(n=>!usedNames.includes(n))[0] || ('Bot '+(i+1));
+        usedNames.push(name);
+        const botId = 'bot_' + genId();
+        players[botId] = { id:botId, name, ready:true, score:0, isBot:true, cardConfirmed:true, avatarUrl:'' };
+      }
+    }
 
     await set(roomRef(roomId), {
       id:roomId, createdAt:Date.now(), status:'waiting',
@@ -1503,7 +1663,7 @@ async function doCreateBotBattle() {
   finally { loading(false); }
 }
 
-function handleBotBattleFlow(room) {
+async function handleBotBattleFlow(room) {
   const status  = room.status;
   const players = room.playerList || Object.values(room.players||{});
 
@@ -1541,6 +1701,9 @@ function handleBotBattleFlow(room) {
       _botBattleAdvanceTimer = setTimeout(async () => {
         _botBattleAdvanceTimer = null;
         await advanceAfterSummary();
+        // Nếu tie → quay lại discussing, reset state để bot tiếp tục
+        _autoBotVoteDone = false;
+        _autoBotSpyGuessDone = false;
       }, 4500);
     }
     return;
@@ -1562,6 +1725,8 @@ function handleBotBattleFlow(room) {
       if (!_botBattleAdvanceTimer) {
         _botBattleAdvanceTimer = setTimeout(async () => {
           _botBattleAdvanceTimer = null;
+          _autoBotVoteDone = false;
+          _autoBotSpyGuessDone = false;
           await doNextRoundBotBattle();
         }, 5000);
       }
