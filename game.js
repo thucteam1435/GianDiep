@@ -1860,6 +1860,48 @@ if(rp) REACTIONS.forEach(e=>{
   rp.appendChild(btn);
 });
 
+function injectBotBattleOverlay(room) {
+  removeBotBattleOverlay();
+  const rd = room.round || {};
+  const players = room.playerList || Object.values(room.players||{});
+  const spy = players.find(p => p.id === rd.spyId);
+  const el = document.createElement('div');
+  el.id = 'bb-overlay';
+  el.style.cssText = 'position:fixed;top:12px;right:12px;z-index:400;background:rgba(20,20,30,.92);border:1px solid var(--gray3);border-radius:10px;padding:10px 14px;font-size:.8rem;max-width:200px;pointer-events:none;';
+  el.innerHTML = `
+    <div style="font-family:'Bebas Neue';letter-spacing:.08em;color:var(--yellow);margin-bottom:4px">🕵️ SPY INFO</div>
+    <div>Spy: <b>${esc(spy?.name||'?')}</b></div>
+    <div>Từ dân: <b style="color:var(--green)">${esc(rd.wordA||'?')}</b></div>
+    <div>Từ spy: <b style="color:var(--red)">${esc(rd.wordB||'?')}</b></div>
+  `;
+  document.body.appendChild(el);
+}
+
+function updateBotBattleOverlay(room) {
+  const el = document.getElementById('bb-overlay');
+  if (!el) { injectBotBattleOverlay(room); return; }
+  // Cập nhật suspicion scores trong overlay nếu có
+  const players = room.playerList || Object.values(room.players||{});
+  const rd = room.round || {};
+  const spy = players.find(p => p.id === rd.spyId);
+  const activeCount = players.filter(p => !p.eliminated).length;
+  const existingDiv = el.querySelector('.bb-active-count');
+  if (existingDiv) {
+    existingDiv.textContent = `Còn lại: ${activeCount} người`;
+  } else {
+    const d = document.createElement('div');
+    d.className = 'bb-active-count';
+    d.style.color = 'var(--cream)';
+    d.style.opacity = '.7';
+    d.textContent = `Còn lại: ${activeCount} người`;
+    el.appendChild(d);
+  }
+}
+
+function removeBotBattleOverlay() {
+  document.getElementById('bb-overlay')?.remove();
+}
+
 // ── Bot Battle: Chat listener riêng dùng bb-chat-messages ──
 function startBotChatListener() {
   if (S.chatListener) S.chatListener();
