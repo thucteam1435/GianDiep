@@ -672,7 +672,9 @@ async function doNextRoundBotBattle() {
 
 // ------------------------------------------------
 // BOT BATTLE OBSERVER UI
-// ====================== RENDER BOT BATTLE – BÀN TRÒN THẬT ======================
+// ------------------------------------------------
+// RENDER BOT BATTLE (ĐÃ FIX)
+// ------------------------------------------------
 function renderBotBattleObserver(room) {
   const el = document.getElementById('botbattle-content');
   if (!el) return;
@@ -695,7 +697,7 @@ function renderBotBattleObserver(room) {
     result:'🏆 Kết quả ván'
   }[status] || status;
 
-  // Timer chạy liên tục
+  // Timer
   let timerHTML = '';
   if (status === 'discussing') {
     const m = Math.floor(S.timerRemaining / 60);
@@ -703,31 +705,12 @@ function renderBotBattleObserver(room) {
     timerHTML = `<div style="font-size:1.6rem;font-weight:bold;color:#ff4444;margin:12px 0;text-align:center">⏰ ${m}:${s}</div>`;
   }
 
-  // ==================== BÀN TRÒN VÀNG – BOT XUNG QUANH ====================
-  const n = players.length;
-  let circleHTML = `
-  <div style="position:relative;width:320px;height:320px;margin:20px auto;">
-    <!-- Vòng tròn vàng chính -->
-    <div style="position:absolute;width:320px;height:320px;border:4px solid #ff0;border-radius:50%;background:rgba(255,255,0,0.05);box-shadow:0 0 30px #ff0;"></div>
-    
-    ${players.map((p, i) => {
-      const angle = (2 * Math.PI * i / n) - Math.PI / 2;
-      const x = 160 + 125 * Math.cos(angle);
-      const y = 160 + 125 * Math.sin(angle);
-      const isSpy = p.id === rd.spyId;
-      return `
-      <div style="position:absolute;left:${x-28}px;top:${y-28}px;width:56px;height:56px;text-align:center;">
-        <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${isSpy?'#ff4444':'#fff'};box-shadow:0 0 12px ${isSpy?'#ff4444':'#666'};margin:auto;">
-          ${makeAvatarHtml(p, '56px', true)}
-        </div>
-        <div style="font-size:0.85rem;margin-top:4px;color:#fff;white-space:nowrap">${esc(p.name.split(' ')[0])}</div>
-        ${isSpy ? '<div style="color:#ff4444;font-size:1.1rem">🕵️</div>' : ''}
-      </div>`;
-    }).join('')}
-  </div>`;
-  // Ma trận nghi ngờ - LUÔN HIỆN khi thảo luận
+  // Bàn tròn bot
+  buildBotBattleCircle(room);
+
+  // Ma trận nghi ngờ
   let suspHTML = '';
-  if (status === 'discussing') {
+  if (status === 'discussing' && Object.keys(_suspicionMap).length > 0) {
     suspHTML = `
     <div class="bb-section">
       <div class="bb-section-title">🧠 Ma trận nghi ngờ</div>
@@ -751,6 +734,8 @@ function renderBotBattleObserver(room) {
       </div>
     </div>`;
   }
+
+  // Scoreboard + Chat
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
   const scoreHTML = `
   <div class="bb-section">
@@ -765,17 +750,16 @@ function renderBotBattleObserver(room) {
         ${p.eliminated ? '<span class="bb-badge elim">❌</span>' : ''}
       </div>`).join('')}
   </div>`;
-  let chatHTML = '';
-  if (_bbChatLog.length) {
-    chatHTML = `
+
+  let chatHTML = _bbChatLog.length ? `
     <div class="bb-section">
       <div class="bb-section-title">💬 Chat gần đây</div>
       ${_bbChatLog.slice(-10).map(m => `
         <div class="bb-chat-row">
           <b>${esc(m.name)}</b>: ${esc(m.text||m.reaction||'...')}
         </div>`).join('')}
-    </div>`;
-  }
+    </div>` : '';
+
   el.innerHTML = `
     <div class="bb-header">
       <div class="bb-title">🤖 BOT BATTLE</div>
@@ -783,9 +767,6 @@ function renderBotBattleObserver(room) {
       <div class="bb-progress">Ván <b>${done+1}</b> / ${max}</div>
     </div>
     ${timerHTML}
-    <div style="display:flex;justify-content:center;flex-wrap:wrap;gap:12px;margin:12px 0;padding:10px;background:rgba(255,255,255,0.05);border-radius:10px;">
-      ${miniAvatars}
-    </div>
     ${suspHTML}
     ${scoreHTML}
     ${chatHTML}
@@ -794,8 +775,44 @@ function renderBotBattleObserver(room) {
     </div>
   `;
 }
+function buildBotBattleCircle(room) {
+  const players = room.playerList || Object.values(room.players || {});
+  const tableEl = document.getElementById('bb-round-table');
+  if (!tableEl) return;
 
-// 3. Thêm hàm mới này (dán bất kỳ đâu sau renderBotBattleObserver)
+  tableEl.innerHTML = `
+    <div class="round-table-surface">
+      <div class="table-center-icon">🤖</div>
+      <div class="table-center-status">${players.length} bot</div>
+    </div>
+  `;
+
+  const n = players.length;
+  const size = tableEl.offsetWidth || 320;
+  const cx = size / 2, cy = size / 2, r = size * 0.42;
+
+  players.forEach((p, i) => {
+    const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+
+    const wrap = document.createElement('div');
+    wrap.className = 'table-player';
+    wrap.style.left = x + 'px';
+    wrap.style.top = y + 'px';
+    wrap.innerHTML = `
+      <div class="avatar" style="cursor:default">
+        ${makeAvatarHtml(p, '100%', true)}
+        ${p.id === room.round?.spyId ? '<div style="position:absolute;top:-6px;right:-6px;font-size:1.4rem">🕵️</div>' : ''}
+      </div>
+      <div class="avatar-name" style="font-size:0.85rem">${esc(p.name)}</div>
+    `;
+    tableEl.appendChild(wrap);
+  });
+}
+// ------------------------------------------------
+// TIME-UP VOTING CHO BOT BATTLE
+// ------------------------------------------------
 async function doBotBattleTimeUpVoting() {
   const roomSnap = await get(roomRef()).catch(()=>null);
   const roomData = roomSnap?.val() || null;
@@ -813,7 +830,6 @@ async function doBotBattleTimeUpVoting() {
     room.status = 'voting';
     room.round.votes = {...(room.round.earlyVotes||{})};
     delete room.round.earlyVotes;
-
     const players = Object.values(room.players||{});
     players.filter(p => p.isBot && !p.eliminated).forEach(bot => {
       const others = players.filter(p => p.id !== bot.id && !p.eliminated);
@@ -1789,6 +1805,9 @@ async function doNextRound() {
   } catch(e){toast('Lỗi: '+e.message);}
   finally{loading(false);}
 }
+// ------------------------------------------------
+// DO LEAVE (clear interval)
+// ------------------------------------------------
 async function doLeave() {
   stopListening();
   if(S.timerInterval) clearInterval(S.timerInterval);
