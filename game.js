@@ -478,7 +478,50 @@ async function doCreateBotBattle() {
   } catch(e) { toast('❌ '+e.message); console.error(e); }
   finally { loading(false); }
 }
+// Tạo node bot
+function createBotNode(bot) {
+  const node = document.createElement('div');
+  node.className = `bb-player-node ${bot.eliminated ? 'eliminated' : ''}`;
+  node.dataset.botId = bot.id;
 
+  node.innerHTML = `
+    <div class="avatar-container">
+      <img src="${bot.avatar || 'https://i.pravatar.cc/128?u=bot' + bot.id}" class="avatar" alt="${bot.name}">
+      <div class="elim-x">×</div>
+    </div>
+    <div class="player-name">${bot.name}</div>
+  `;
+  return node;
+}
+
+// Render tất cả bot lên bàn tròn (vị trí vòng tròn đẹp)
+function renderBotTable(botsList) {
+  const table = document.getElementById('bb-round-table');
+  if (!table) return;
+
+  // Xóa node cũ
+  table.querySelectorAll('.bb-player-node').forEach(n => n.remove());
+
+  const surface = table.querySelector('.round-table-surface');
+  const count = botsList.length;
+  const radius = 39; // % so với bàn
+
+  botsList.forEach((bot, i) => {
+    const node = createBotNode(bot);
+    
+    const angle = (i * (360 / count)) - 90;
+    const rad = angle * Math.PI / 180;
+    
+    const left = 50 + Math.cos(rad) * radius;
+    const top  = 50 + Math.sin(rad) * radius;
+
+    node.style.left = left + '%';
+    node.style.top  = top + '%';
+    node.style.transform = 'translate(-50%, -50%)';
+
+    surface.appendChild(node);
+  });
+}
 // ------------------------------------------------
 // BOT BATTLE FLOW
 // ------------------------------------------------
