@@ -58,8 +58,8 @@ const S = {
   cardFlipped:false, cardConfirmed:false, spyGuessSubmitted:false,
   chatCollapsed:true, chatUnread:0,
   _lastRound:null, _lastStatus:null,
-  isBotBattle:false,       // phòng toàn bot
-  isObserver:false,        // người xem phòng bot
+  isBotBattle:false,
+  isObserver:false,
 };
 let _wordPickedUp = false;
 let _autoBotVoteDone = false;
@@ -95,9 +95,13 @@ function initSuspicion(players) {
   });
 }
 
+function clearSuspicion() {
+  _suspicionMap = {};
+}
+
 function updateSuspicion(speakerId, actionType, text, targetId, allPlayerIds, round) {
-  const lower = (text || '').toLowerCase();
-  const wordB = (round?.wordB || '').toLowerCase(); // từ của spy
+  const lower   = (text || '').toLowerCase();
+  const wordB   = (round?.wordB || '').toLowerCase();
 
   allPlayerIds.forEach(observerId => {
     if (observerId === speakerId) return;
@@ -106,24 +110,23 @@ function updateSuspicion(speakerId, actionType, text, targetId, allPlayerIds, ro
 
     if (actionType === 'hint') {
       const wc = text.trim().split(/\s+/).length;
-      if (wc < 4)  delta += 8;   // câu quá ngắn → nghi
-      if (wc > 14) delta += 4;   // câu dài lòng vòng → hơi nghi
-      if (wordB && lower.includes(wordB)) delta += 25; // dùng từ spy → rất nghi
+      if (wc < 4)  delta += 8;
+      if (wc > 14) delta += 4;
+      if (wordB && lower.includes(wordB)) delta += 25;
       if (/\b(thường|hay|dùng để|màu|hình|mùi|vị|cảm giác|dành cho)\b/i.test(text)) delta -= 5;
     }
     if (actionType === 'defend') {
-      delta -= 6; // bào chữa tốt → giảm nghi
-      if (wordB && lower.includes(wordB)) delta += 30; // nhắc từ spy khi defend → cực nghi
+      delta -= 6;
+      if (wordB && lower.includes(wordB)) delta += 30;
     }
     if (actionType === 'accuse') {
-      delta += 2; // tố nhiều hơi đáng ngờ
+      delta += 2;
     }
 
     const cur = _suspicionMap[observerId][speakerId] ?? 10;
     _suspicionMap[observerId][speakerId] = Math.max(0, Math.min(100, cur + delta));
   });
 
-  // Nếu accuse targetId → target tăng nghi kẻ tố
   if (actionType === 'accuse' && targetId && _suspicionMap[targetId]) {
     const cur = _suspicionMap[targetId][speakerId] ?? 10;
     _suspicionMap[targetId][speakerId] = Math.max(0, Math.min(100, cur + 5));
@@ -187,14 +190,12 @@ function toast(msg,dur=3000){
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ------------------------------------------------
-//  AVATAR HELPER — fix Google Drive CORS
+//  AVATAR HELPER
 // ------------------------------------------------
 function fixDriveUrl(url) {
   if (!url) return '';
-  // dạng uc?export=view&id=FILE_ID
   const m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
   if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w100`;
-  // dạng /file/d/FILE_ID/
   const m2 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
   if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w100`;
   return url;
@@ -285,14 +286,17 @@ function stopListening() {
 function handleRoomUpdate(room) {
   tryPickUpWord(room);
 
-  if (room.status==='playing' && room.roundNumber!==S._lastRound) {
-    S._lastRound=room.roundNumber;
+  // ✅ FIX BUG 3: Luôn check roundNumber thay đổi TRƯỚC khi route sang botBattle
+  //    Đảm bảo clearBotActionLog/clearSuspicion chạy ngay cả với phòng bot battle
+  if (room.status === 'playing' && room.roundNumber !== S._lastRound) {
+    S._lastRound = room.roundNumber;
     S.cardFlipped=false; S.cardConfirmed=false;
     S.votedThisRound=false; S.earlyVoted=false; S.earlyVoteChoice=null;
     S.spyGuessSubmitted=false; _wordPickedUp=false;
     _autoBotVoteDone=false; _autoBotSpyGuessDone=false;
     if (_botBattleAdvanceTimer) { clearTimeout(_botBattleAdvanceTimer); _botBattleAdvanceTimer=null; }
-    clearBotActionLog();
+    clearBotActionLog();   // ✅ reset action log cho ván mới
+    clearSuspicion();      // ✅ reset suspicion cho ván mới
   }
 
   // Phòng bot battle: observer flow
@@ -432,9 +436,8 @@ async function doJoinRoom() {
 }
 
 // ================================================
-//  BOT BATTLE ROOM — Phòng toàn bot tự đấu
+//  BOT BATTLE ROOM
 // ================================================
-
 async function doCreateBotBattle() {
   const maxRoundsEl = document.getElementById('bot-battle-rounds');
   const maxRounds   = maxRoundsEl ? (parseInt(maxRoundsEl.value)||10) : 10;
@@ -451,7 +454,6 @@ async function doCreateBotBattle() {
 
     const kw = await getKeywords();
 
-    // Lấy bot roster từ GAS để có đúng tên + avatarUrl đã cài
     const players = {};
     const usedNames = [];
     const fallbackRoster = ["Daydream","Kizuna","Anubis","Teth","Daleth","Fire","Water","Air","Melan","Earth"];
@@ -472,6 +474,7 @@ async function doCreateBotBattle() {
       }
       usedNames.push(botName);
       const botId = 'bot_' + genId();
+      // ✅ FIX BUG 2: Lưu avatarUrl đã fix CORS ngay khi tạo bot
       players[botId] = {
         id: botId, name: botName, ready:true, score:0,
         isBot:true, cardConfirmed:true,
@@ -481,7 +484,7 @@ async function doCreateBotBattle() {
 
     await set(roomRef(roomId), {
       id:roomId, createdAt:Date.now(), status:'waiting',
-      hostId: Object.keys(players)[0], // bot đầu làm host ảo
+      hostId: Object.keys(players)[0],
       isBotBattle: true,
       botBattleMaxRounds: maxRounds,
       botBattleRoundsDone: 0,
@@ -489,7 +492,6 @@ async function doCreateBotBattle() {
       players
     });
 
-    // Khởi động ván đầu ngay
     await runTransaction(roomRef(), room => {
       if (!room) return room;
       beginRoundTx(room, kw);
@@ -504,22 +506,19 @@ async function doCreateBotBattle() {
 }
 
 // ------------------------------------------------
-//  BOT BATTLE FLOW — xử lý mọi transition tự động
+//  BOT BATTLE FLOW
 // ------------------------------------------------
 function handleBotBattleFlow(room) {
-  // Luôn ở botbattle screen
   if (parseHash().screen !== 'botbattle') nav('botbattle', {room:S.roomId});
 
-  const status = room.status;
+  const status  = room.status;
   const players = room.playerList || Object.values(room.players||{});
 
-  // Luôn cập nhật observer UI
   renderBotBattleObserver(room);
 
   if (status === 'waiting') return;
 
   if (status === 'playing') {
-    // Auto confirm tất cả bot → chuyển sang discussing ngay
     autoBotConfirmCards(room);
     return;
   }
@@ -530,30 +529,30 @@ function handleBotBattleFlow(room) {
       _lastRoom = room;
       S.earlyVoteChoice = null;
       S.earlyVoted = false;
-      const badgeEl = document.getElementById('tb-round-badge');
-      const wordEl  = document.getElementById('tb-word-display');
-      if (badgeEl) badgeEl.textContent = 'VÒNG ' + (room.roundNumber || 1);
-      if (wordEl)  wordEl.textContent  = '🤖 BOT BATTLE';
+
       const startAt  = room.round?.discussStartAt  || Date.now();
       const duration = room.round?.discussDuration  || 90;
       S.timerRemaining = Math.max(0, duration - Math.floor((Date.now() - startAt) / 1000));
       if (S.timerInterval) clearInterval(S.timerInterval);
       S.timerRunning = true;
-      updateTableTimer();
       S.timerInterval = setInterval(() => {
         S.timerRemaining = Math.max(0, S.timerRemaining - 1);
-        updateTableTimer();
         if (S.timerRemaining === 0) { clearInterval(S.timerInterval); S.timerRunning = false; }
       }, 1000);
+
       initSuspicion(players);
-      buildRoundTable(room);
+
+      // ✅ FIX BUG 2: Bot battle dùng round-table trong discussion screen riêng
+      // Không gọi buildRoundTable() vì botbattle screen không có #round-table
+      // Chỉ hiển thị overlay và chat
+      injectBotBattleOverlay(room);
       startBotChatListener();
       scheduleBotHints(room);
+
       S.chatCollapsed = false;
       document.querySelector('#screen-botbattle .chat-panel')?.classList.remove('collapsed');
-      injectBotBattleOverlay(room);
     } else {
-      updateTableAvatars(room);
+      _lastRoom = room;
       updateBotBattleOverlay(room);
     }
     return;
@@ -584,7 +583,6 @@ function handleBotBattleFlow(room) {
 
   if (status === 'result') {
     S._inDiscussion = false;
-    // Gửi learn payload (host ảo = bot đầu tiên, observer trigger)
     if (!room._learnSent) {
       update(roomRef(), { _learnSent: true }).catch(()=>{});
       sendLearnPayload(room);
@@ -607,11 +605,7 @@ async function autoBotConfirmCards(room) {
   try {
     await runTransaction(roomRef(), r => {
       if (!r || r.status !== 'playing') return r;
-      let allConfirmed = true;
-      Object.values(r.players||{}).forEach(p => {
-        p.cardConfirmed = true;
-        if (!p.cardConfirmed) allConfirmed = false;
-      });
+      Object.values(r.players||{}).forEach(p => { p.cardConfirmed = true; });
       if (Object.values(r.players).every(p => p.cardConfirmed)) {
         r.status = 'discussing';
         r.round.discussStartAt = Date.now();
@@ -626,7 +620,7 @@ async function autoBotConfirmCards(room) {
 async function autoBotVote(room) {
   _autoBotVoteDone = true;
   try {
-    const players = Object.values(room.players||{});
+    const players  = Object.values(room.players||{});
     const botVotes = {};
     for (const bot of players.filter(p => p.isBot && !p.eliminated)) {
       const candidates = players.filter(p => p.id !== bot.id && !p.eliminated);
@@ -657,7 +651,6 @@ async function autoBotSpyGuess(room) {
       await runTransaction(roomRef(), r => {
         if (!r || r.status !== 'spyguess') return r;
         const players = Object.values(r.players||{});
-        // Bot spy không biết wordA thật sự → đoán dựa vào context (simplified: thường sai)
         r.round.spyGuess = '???';
         r.round.result   = 'villagers';
         players.filter(p => p.id !== r.round.spyId).forEach(p => { p.score = (p.score||0)+1; });
@@ -686,6 +679,9 @@ async function doNextRoundBotBattle() {
       beginRoundTx(room, kw);
       return room;
     });
+    // ✅ FIX BUG 4: Reset action log và suspicion cho ván bot battle mới
+    clearBotActionLog();
+    clearSuspicion();
     _autoBotVoteDone=false; _autoBotSpyGuessDone=false;
     S._inDiscussion=false;
   } catch(e){ toast('Lỗi: '+e.message); console.error(e); }
@@ -705,9 +701,7 @@ function renderBotBattleObserver(room) {
   const done    = room.botBattleRoundsDone || 0;
   const max     = room.botBattleMaxRounds  || 10;
 
-  if (status === 'botbattle_end') {
-    renderBotBattleEnd(room); return;
-  }
+  if (status === 'botbattle_end') { renderBotBattleEnd(room); return; }
 
   const statusLabel = {
     waiting:'⏳ Chuẩn bị...', playing:'🃏 Chia bài...',
@@ -716,7 +710,7 @@ function renderBotBattleObserver(room) {
     result:'🏆 Kết quả ván'
   }[status] || status;
 
-  // === Suspicion heatmap ===
+  // Suspicion heatmap
   let suspHTML = '';
   const hasSusp = status === 'discussing' && Object.keys(_suspicionMap).length > 0;
   if (hasSusp) {
@@ -738,8 +732,7 @@ function renderBotBattleObserver(room) {
               const pct   = score / 100;
               const r2    = Math.round(50 + pct * 200);
               const g2    = Math.round(180 - pct * 180);
-              const b2    = 50;
-              return `<td style="background:rgb(${r2},${g2},${b2});color:#fff;font-weight:bold;text-align:center">${Math.round(score)}</td>`;
+              return `<td style="background:rgb(${r2},${g2},50);color:#fff;font-weight:bold;text-align:center">${Math.round(score)}</td>`;
             }).join('')}
           </tr>`).join('')}
         </tbody>
@@ -748,7 +741,7 @@ function renderBotBattleObserver(room) {
     </div>`;
   }
 
-  // === Scoreboard ===
+  // Scoreboard
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
   const scoreHTML = `
   <div class="bb-section">
@@ -756,14 +749,15 @@ function renderBotBattleObserver(room) {
     ${sorted.map((p,i) => `
       <div class="bb-score-row">
         <span class="bb-rank" style="${i===0?'color:gold':i===1?'color:#ccc':'color:#cd7f32'}">#${i+1}</span>
-        <span class="bb-name">${p.isBot?'🤖 ':''}${esc(p.name)}</span>
+        <div class="bb-avatar-wrap" style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0">${makeAvatarHtml(p,'28px',true)}</div>
+        <span class="bb-name">${esc(p.name)}</span>
         <span class="bb-pts">${p.score||0} pt</span>
         ${p.id===rd.spyId ? '<span class="bb-badge spy">🕵️ SPY</span>' : ''}
         ${p.eliminated ? '<span class="bb-badge elim">❌</span>' : ''}
       </div>`).join('')}
   </div>`;
 
-  // === Chat log ===
+  // Chat log
   let chatHTML = '';
   if (_bbChatLog.length) {
     chatHTML = `
@@ -804,6 +798,7 @@ function renderBotBattleEnd(room) {
       ${sorted.map((p,i) => `
         <div class="bb-score-row bb-end-row">
           <span class="bb-rank" style="${i===0?'color:gold;font-size:1.4rem':''}">#${i+1}</span>
+          <div class="bb-avatar-wrap" style="width:28px;height:28px;border-radius:50%;overflow:hidden;flex-shrink:0">${makeAvatarHtml(p,'28px',true)}</div>
           <span class="bb-name">${esc(p.name)}</span>
           <span class="bb-pts">${p.score||0} điểm</span>
         </div>`).join('')}
@@ -1044,7 +1039,7 @@ function buildRoundTable(room) {
   const players=room.playerList||Object.values(room.players||{});
   const n=players.length;
   const tableEl=document.getElementById('round-table');
-  if(!tableEl) return;
+  if(!tableEl) return;  // ✅ guard: không crash nếu element không tồn tại
   tableEl.querySelectorAll('.table-player').forEach(el=>el.remove());
   const size=tableEl.offsetWidth||300;
   const cx=size/2, cy=size/2, r=size*0.42;
@@ -1177,6 +1172,7 @@ function showBubble(playerId, text, dur=4000) {
   el.textContent=text; el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),dur);
 }
+
 function setAvatarSpeaking(playerId, on) {
   document.getElementById(`avatar-${playerId}`)?.classList.toggle('speaking',on);
 }
@@ -1196,7 +1192,7 @@ async function callGAS(payload) {
 }
 
 // ------------------------------------------------
-//  BOT AI — triggerBotAction với gameId + botIndex + suspicion
+//  BOT AI
 // ------------------------------------------------
 function scheduleBotHints(room) {
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
@@ -1264,7 +1260,6 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
       : null;
   }
 
-  // gameId + botIndex — FIX cho hint dedup
   const gameId   = S.roomId + '_' + (room.roundNumber||0);
   const botIndex = botIndexInRoom !== undefined ? botIndexInRoom
     : players.filter(p=>p.isBot&&!p.eliminated).findIndex(b=>b.id===bot.id);
@@ -1278,20 +1273,17 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
     finalText = await callGAS({
       action,
       botName:          bot.name,
-      word,
-      isSpy,
+      word, isSpy,
       wordA:            room.round?.wordA,
       wordB:            room.round?.wordB,
       recentChat,
       suspectName:      suspect?.name||'',
       players:          others.map(p=>p.name),
       allNames:         players.map(p=>p.name),
-      gameId,                    // ✅ fix hint dedup
-      botIndex,                  // ✅ fix hint dedup
-      suspicionContext            // ✅ Gemini biết ai đang bị nghi nhất
+      gameId, botIndex,
+      suspicionContext
     });
 
-    // Cập nhật suspicion sau khi bot nói
     const allIds = players.map(p=>p.id);
     updateSuspicion(bot.id, action, finalText, suspect?.id||null, allIds, room.round);
 
@@ -1392,7 +1384,6 @@ function startChatListener() {
       _bbChatLog.push(m);
       if(_bbChatLog.length>50) _bbChatLog.shift();
       appendChatMsg(m);
-      // Cập nhật suspicion khi người thật chat
       if(!m.isBot&&m.pid&&m.text){
         const allPlayers=_lastRoom?Object.values(_lastRoom.players||{}):[];
         const allIds=allPlayers.map(p=>p.id);
@@ -1736,7 +1727,7 @@ async function doSpyGuess() {
 }
 
 // ------------------------------------------------
-//  LEARN
+//  LEARN — ✅ FIX BUG 1: ghi bot_memory đúng
 // ------------------------------------------------
 async function sendLearnPayload(room) {
   try {
@@ -1744,27 +1735,47 @@ async function sendLearnPayload(room) {
     const bots=players.filter(p=>p.isBot);
     if(!bots.length) return;
     const gameId=S.roomId+'_'+(room.roundNumber||0);
+    const allNames=players.map(p=>p.name);
+
     const botsPayload=bots.map(bot=>{
       const isSpy=bot.id===rd.spyId;
       const votedForId=rd.votes?.[bot.id]||null;
       const votedForName=votedForId?(players.find(p=>p.id===votedForId)?.name||null):null;
       const wasVotedBy=Object.entries(rd.votes||{})
         .filter(([,tid])=>tid===bot.id).map(([pid])=>players.find(p=>p.id===pid)?.name||pid);
+
+      // ✅ Đảm bảo actions luôn có dữ liệu, kể cả khi log rỗng
+      const rawActions = _botActionLog[bot.id] || [];
+      const actions = rawActions.map(a=>({
+        type: a.type,
+        text: a.text,
+        suspectName: a.suspectName || ''
+      }));
+
       return {
-        botName:bot.name, role:isSpy?'spy':'villager',
-        won:rd.result===(isSpy?'spy':'villagers'),
-        word:isSpy?rd.wordB:rd.wordA, wordA:rd.wordA, wordB:rd.wordB,
-        actions:(_botActionLog[bot.id]||[]).map(a=>({type:a.type,text:a.text,suspectName:a.suspectName})),
-        votedFor:votedForName, _votedForId:votedForId, wasVotedBy, spyId:rd.spyId
+        botName:    bot.name,
+        role:       isSpy ? 'spy' : 'villager',
+        won:        rd.result === (isSpy ? 'spy' : 'villagers'),
+        word:       isSpy ? rd.wordB : rd.wordA,
+        wordA:      rd.wordA,
+        wordB:      rd.wordB,
+        actions,
+        votedFor:      votedForName,
+        _votedForId:   votedForId,
+        wasVotedBy,
+        spyId:         rd.spyId
       };
     });
+
     sendActionToGAS({
-      action:'learn', gameId,
-      playerList:players.map(p=>p.name),
-      keywordList:[rd.wordA,rd.wordB].filter(Boolean),
-      bots:botsPayload
+      action:      'learn',
+      gameId,
+      playerList:  players.map(p=>p.name),
+      keywordList: [rd.wordA, rd.wordB].filter(Boolean),
+      allNames,
+      bots:        botsPayload
     });
-  } catch(e){ console.warn('sendLearnPayload error:',e); }
+  } catch(e) { console.warn('sendLearnPayload error:',e); }
 }
 
 // ------------------------------------------------
@@ -1819,6 +1830,7 @@ async function doLeave() {
   if(_botBattleAdvanceTimer){clearTimeout(_botBattleAdvanceTimer);_botBattleAdvanceTimer=null;}
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   clearBotActionLog();
+  clearSuspicion();
   const{roomId,playerId,isObserver}=S;
   S.roomId=''; S.playerId=''; S.playerName=''; S.myWord=null;
   S.earlyVoted=false; S.earlyVoteChoice=null; S.votedThisRound=false;
@@ -1842,24 +1854,8 @@ async function doLeave() {
 }
 
 // ------------------------------------------------
-//  INIT
+//  BOT BATTLE OVERLAY
 // ------------------------------------------------
-load();
-const{screen:initScreen,params:initParams}=parseHash();
-showScreen(initScreen);
-if(initScreen==='join'&&initParams.room){
-  const el=document.getElementById('join-code'); if(el) el.value=initParams.room;
-}
-if(S.roomId&&S.playerId&&!['home','create','join','rules'].includes(initScreen)) listenRoom(S.roomId);
-
-const rp=document.getElementById('reaction-picker');
-if(rp) REACTIONS.forEach(e=>{
-  const btn=document.createElement('button');
-  btn.className='reaction-btn'; btn.textContent=e;
-  btn.onclick=()=>doSendReaction(e);
-  rp.appendChild(btn);
-});
-
 function injectBotBattleOverlay(room) {
   removeBotBattleOverlay();
   const rd = room.round || {};
@@ -1873,6 +1869,7 @@ function injectBotBattleOverlay(room) {
     <div>Spy: <b>${esc(spy?.name||'?')}</b></div>
     <div>Từ dân: <b style="color:var(--green)">${esc(rd.wordA||'?')}</b></div>
     <div>Từ spy: <b style="color:var(--red)">${esc(rd.wordB||'?')}</b></div>
+    <div class="bb-active-count" style="color:var(--cream);opacity:.7;margin-top:4px"></div>
   `;
   document.body.appendChild(el);
 }
@@ -1880,29 +1877,19 @@ function injectBotBattleOverlay(room) {
 function updateBotBattleOverlay(room) {
   const el = document.getElementById('bb-overlay');
   if (!el) { injectBotBattleOverlay(room); return; }
-  // Cập nhật suspicion scores trong overlay nếu có
   const players = room.playerList || Object.values(room.players||{});
-  const rd = room.round || {};
-  const spy = players.find(p => p.id === rd.spyId);
   const activeCount = players.filter(p => !p.eliminated).length;
-  const existingDiv = el.querySelector('.bb-active-count');
-  if (existingDiv) {
-    existingDiv.textContent = `Còn lại: ${activeCount} người`;
-  } else {
-    const d = document.createElement('div');
-    d.className = 'bb-active-count';
-    d.style.color = 'var(--cream)';
-    d.style.opacity = '.7';
-    d.textContent = `Còn lại: ${activeCount} người`;
-    el.appendChild(d);
-  }
+  const d = el.querySelector('.bb-active-count');
+  if (d) d.textContent = `Còn lại: ${activeCount} người`;
 }
 
 function removeBotBattleOverlay() {
   document.getElementById('bb-overlay')?.remove();
 }
 
-// ── Bot Battle: Chat listener riêng dùng bb-chat-messages ──
+// ------------------------------------------------
+//  BOT BATTLE CHAT LISTENER
+// ------------------------------------------------
 function startBotChatListener() {
   if (S.chatListener) S.chatListener();
   const r = chatRef();
@@ -1910,6 +1897,7 @@ function startBotChatListener() {
   if (msgs) msgs.innerHTML = '';
   const cutoff = _lastRoom?.round?.chatStartTs || _lastRoom?.round?.discussStartAt || 0;
   let _renderedIds = new Set();
+  _bbChatLog = [];
 
   const unsubscribe = onValue(r, snap => {
     if (!snap.exists()) return;
@@ -1925,13 +1913,14 @@ function startBotChatListener() {
       _bbChatLog.push(m);
       if (_bbChatLog.length > 50) _bbChatLog.shift();
       appendBotChatMsg(m);
-      // Cập nhật suspicion khi có tin nhắn mới
+      // Cập nhật suspicion từ tin nhắn mới
       if (m.pid && m.text && _lastRoom) {
         const allPlayers = Object.values(_lastRoom.players||{});
         const allIds = allPlayers.map(p=>p.id);
         let actionType = 'hint';
         const t = (m.text||'').toLowerCase();
-        if (/nghi|tố|đó là|chắc chắn|rõ ràng là/.test(t) && allPlayers.some(p=>p.name&&t.includes(p.name.toLowerCase()))) actionType = 'accuse';
+        if (/nghi|tố|đó là|chắc chắn|rõ ràng là/.test(t) &&
+            allPlayers.some(p=>p.name&&t.includes(p.name.toLowerCase()))) actionType = 'accuse';
         else if (/oan|không phải tôi|tôi biết|mình biết|sai rồi/.test(t)) actionType = 'defend';
         else if (t.split(/\s+/).length < 5) actionType = 'react';
         let targetId = null;
@@ -1958,10 +1947,11 @@ function appendBotChatMsg(m) {
   const div = document.createElement('div');
   div.className = 'chat-msg';
   const playerData = Object.values(_lastRoom?.players || {}).find(p => p.id === m.pid);
-  let avatarHtml = m.isBot ? '🤖' : '😊';
+  const defaultEmoji = m.isBot ? '🤖' : '😊';
+  let avatarHtml = defaultEmoji;
   if (playerData?.avatarUrl) {
     const url = fixDriveUrl(playerData.avatarUrl);
-    avatarHtml = `<img src="${url}" class="chat-avatar-img" onerror="this.outerHTML='<span>${m.isBot ? '🤖' : '😊'}</span>'">`;
+    avatarHtml = `<img src="${url}" class="chat-avatar-img" onerror="this.outerHTML='<span>${defaultEmoji}</span>'">`;
   }
   div.innerHTML = `
     <div class="chat-msg-avatar">${avatarHtml}</div>
@@ -1972,8 +1962,9 @@ function appendBotChatMsg(m) {
         : `<div class="chat-msg-text">${esc(m.text||'')}</div>`}
     </div>`;
   msgs.appendChild(div);
+  // ✅ FIX BUG 1: Dùng showBubble (đúng tên), không phải showBotBubble (undefined)
   const txt = m.text || m.reaction || '';
-  showBotBubble(m.pid, txt.length > 40 ? txt.slice(0, 40) + '…' : txt, 4000);
+  showBubble(m.pid, txt.length > 40 ? txt.slice(0, 40) + '…' : txt, 4000);
 }
 
 function toggleBotChat() {
@@ -1986,6 +1977,25 @@ function toggleBotChat() {
     if (msgs) setTimeout(() => { msgs.scrollTop = msgs.scrollHeight; }, 100);
   }
 }
+
+// ------------------------------------------------
+//  INIT
+// ------------------------------------------------
+load();
+const{screen:initScreen,params:initParams}=parseHash();
+showScreen(initScreen);
+if(initScreen==='join'&&initParams.room){
+  const el=document.getElementById('join-code'); if(el) el.value=initParams.room;
+}
+if(S.roomId&&S.playerId&&!['home','create','join','rules'].includes(initScreen)) listenRoom(S.roomId);
+
+const rp=document.getElementById('reaction-picker');
+if(rp) REACTIONS.forEach(e=>{
+  const btn=document.createElement('button');
+  btn.className='reaction-btn'; btn.textContent=e;
+  btn.onclick=()=>doSendReaction(e);
+  rp.appendChild(btn);
+});
 
 // -- EXPOSE GLOBALS --
 window.nav=nav; window.copyJoinLink=copyJoinLink; window.flipCard=flipCard;
