@@ -87,6 +87,21 @@
   display: flex; gap: 8px; width: 100%; max-width: 280px; align-items: center;
 }
 .bb-launch-row input { width: 56px; text-align: center; flex-shrink: 0; }
+
+/* ── BOT TRÊN BÀN TRÒN + DẤU × ── */
+.table-player.eliminated { opacity: 0.38; transform: scale(0.89); }
+.avatar.eliminated { border: 3px solid #e74c3c !important; }
+.avatar-elim-badge {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 55px;
+  color: #e74c3c;
+  font-weight: 900;
+  text-shadow: 0 0 15px #000;
+  pointer-events: none;
+  z-index: 10;
+}
 </style>
 </head>
 <body>
