@@ -1897,8 +1897,7 @@ function updateBotBattleOverlay(room) {
   const max  = room.botBattleMaxRounds  || 10;
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
   overlay.innerHTML =
-    '<div style="font-family:'Bebas Neue';font-size:.72rem;letter-spacing:.1em;opacity:.45;margin-bottom:5px">🤖 VÁN ' + (done+1) + '/' + max + '</div>' +
-    sorted.map((p,i) => {
+    '<div style="font-family:'Bebas Neue';font-size:.72rem;letter-spacing:.1em;opacity:.45;margin-bottom:5px">🤖 VÁN ' + (done+1) + '/' + max + '</div>' + sorted.map((p,i) => {
       const isSpy = p.id === rd.spyId;
       const col = i===0?'gold':i===1?'#ccc':'#cd7f32';
       return '<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px">' +
