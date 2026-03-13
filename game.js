@@ -1570,7 +1570,7 @@ function handleBotBattleFlow(room) {
   }
 }
 
-async async function autoBotConfirmCards(room) {
+async function autoBotConfirmCards(room) {
   try {
     await runTransaction(roomRef(), r => {
       if (!r || r.status !== 'playing') return r;
@@ -1586,7 +1586,7 @@ async async function autoBotConfirmCards(room) {
   } catch(e) { console.error('autoBotConfirmCards', e); }
 }
 
-async async function autoBotVote(room) {
+async function autoBotVote(room) {
   if (_autoBotVoteDone) return;
   _autoBotVoteDone = true;
   // Nhỏ delay để Firebase chắc chắn đã set status='voting'
@@ -1640,7 +1640,7 @@ async function autoBotSpyGuess(room) {
   }, 2500);
 }
 
-async async function doNextRoundBotBattle() {
+async function doNextRoundBotBattle() {
   loading(true);
   try {
     const kw = await getKeywords();
