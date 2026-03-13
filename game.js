@@ -925,7 +925,7 @@ function appendChatMsg(m) {
   if(m.reaction) showBubble(m.pid, m.reaction, 2500);
 }
 
-async async function postBotChat(bot,text) {
+async function postBotChat(bot,text) {
   try {
     const msgId=genId();
     await set(ref(db,`rooms/${S.roomId}/chat/${msgId}`),{
