@@ -3,7 +3,7 @@ import { getDatabase, ref, set, get, update, onValue, off, runTransaction }
   from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 
 // ------------------------------------------------
-//  ⚙️  CẤU HÌNH
+// ⚙️ CẤU HÌNH
 // ------------------------------------------------
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyBwl9j1V_PEP_5etnhhAUR1UUU3bfpx8uI",
@@ -17,13 +17,13 @@ const FIREBASE_CONFIG = {
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwGfPyXJcgay2MdZQI0bSezduzfJZZPVv_ZIS18gK-E2xYdLL5g5ZuoXJsCvkXpYxZb/exec";
 
 // ------------------------------------------------
-//  FIREBASE INIT
+// FIREBASE INIT
 // ------------------------------------------------
 const app = initializeApp(FIREBASE_CONFIG);
-const db  = getDatabase(app);
+const db = getDatabase(app);
 
 // ------------------------------------------------
-//  KEYWORDS
+// KEYWORDS
 // ------------------------------------------------
 let _keywords = null;
 async function getKeywords() {
@@ -47,7 +47,7 @@ async function getKeywords() {
 }
 
 // ------------------------------------------------
-//  STATE
+// STATE
 // ------------------------------------------------
 const S = {
   roomId:'', playerId:'', playerName:'', myWord:null,
@@ -68,7 +68,7 @@ let _botBattleAdvanceTimer = null;
 let _bbChatLog = [];
 
 // ------------------------------------------------
-//  BOT ACTION LOG
+// BOT ACTION LOG
 // ------------------------------------------------
 const _botActionLog = {};
 function logBotAction(botId, type, text, suspectName) {
@@ -80,11 +80,10 @@ function clearBotActionLog() {
 }
 
 // ================================================
-//  SUSPICION SYSTEM
-//  _suspicionMap[observerId][targetId] = score 0-100
+// SUSPICION SYSTEM
+// _suspicionMap[observerId][targetId] = score 0-100
 // ================================================
 let _suspicionMap = {};
-
 function initSuspicion(players) {
   _suspicionMap = {};
   players.forEach(a => {
@@ -94,23 +93,19 @@ function initSuspicion(players) {
     });
   });
 }
-
 function clearSuspicion() {
   _suspicionMap = {};
 }
-
 function updateSuspicion(speakerId, actionType, text, targetId, allPlayerIds, round) {
-  const lower   = (text || '').toLowerCase();
-  const wordB   = (round?.wordB || '').toLowerCase();
-
+  const lower = (text || '').toLowerCase();
+  const wordB = (round?.wordB || '').toLowerCase();
   allPlayerIds.forEach(observerId => {
     if (observerId === speakerId) return;
     if (!_suspicionMap[observerId]) _suspicionMap[observerId] = {};
     let delta = 0;
-
     if (actionType === 'hint') {
       const wc = text.trim().split(/\s+/).length;
-      if (wc < 4)  delta += 8;
+      if (wc < 4) delta += 8;
       if (wc > 14) delta += 4;
       if (wordB && lower.includes(wordB)) delta += 25;
       if (/\b(thường|hay|dùng để|màu|hình|mùi|vị|cảm giác|dành cho)\b/i.test(text)) delta -= 5;
@@ -122,17 +117,14 @@ function updateSuspicion(speakerId, actionType, text, targetId, allPlayerIds, ro
     if (actionType === 'accuse') {
       delta += 2;
     }
-
     const cur = _suspicionMap[observerId][speakerId] ?? 10;
     _suspicionMap[observerId][speakerId] = Math.max(0, Math.min(100, cur + delta));
   });
-
   if (actionType === 'accuse' && targetId && _suspicionMap[targetId]) {
     const cur = _suspicionMap[targetId][speakerId] ?? 10;
     _suspicionMap[targetId][speakerId] = Math.max(0, Math.min(100, cur + 5));
   }
 }
-
 function getTopSuspect(botId, candidates) {
   const scores = _suspicionMap[botId] || {};
   let best = null, bestScore = -1;
@@ -142,7 +134,6 @@ function getTopSuspect(botId, candidates) {
   });
   return best;
 }
-
 function serializeSuspicion(botId, players) {
   const scores = _suspicionMap[botId] || {};
   return players
@@ -152,7 +143,7 @@ function serializeSuspicion(botId, players) {
 }
 
 // ------------------------------------------------
-//  PERSIST
+// PERSIST
 // ------------------------------------------------
 function save() {
   try { localStorage.setItem('gd_fb1', JSON.stringify({
@@ -172,7 +163,7 @@ function load() {
 }
 
 // ------------------------------------------------
-//  HELPERS
+// HELPERS
 // ------------------------------------------------
 function genRoomCode() {
   const c="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -190,7 +181,7 @@ function toast(msg,dur=3000){
 function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
 // ------------------------------------------------
-//  AVATAR HELPER
+// AVATAR HELPER
 // ------------------------------------------------
 function fixDriveUrl(url) {
   if (!url) return '';
@@ -200,7 +191,6 @@ function fixDriveUrl(url) {
   if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w100`;
   return url;
 }
-
 function makeAvatarHtml(player, size, forTable) {
   size = size || '36px';
   const defaultEmoji = player.isBot ? '🤖' : '😊';
@@ -220,7 +210,7 @@ function makeAvatarHtml(player, size, forTable) {
 }
 
 // ------------------------------------------------
-//  ROUTER
+// ROUTER
 // ------------------------------------------------
 function nav(screen, params) {
   const qs = params ? '?'+Object.entries(params).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&') : '';
@@ -250,18 +240,18 @@ function copyJoinLink() {
 }
 
 // ------------------------------------------------
-//  FIREBASE HELPERS
+// FIREBASE HELPERS
 // ------------------------------------------------
-function roomRef(id)   { return ref(db,`rooms/${id||S.roomId}`); }
+function roomRef(id) { return ref(db,`rooms/${id||S.roomId}`); }
 function playerRef(rid,pid) { return ref(db,`rooms/${rid}/players/${pid}`); }
-function chatRef()     { return ref(db,`rooms/${S.roomId}/chat`); }
+function chatRef() { return ref(db,`rooms/${S.roomId}/chat`); }
 async function getRoom(roomId) {
   const snap = await get(roomRef(roomId||S.roomId));
   return snap.exists() ? snap.val() : null;
 }
 
 // ------------------------------------------------
-//  REALTIME LISTENER
+// REALTIME LISTENER
 // ------------------------------------------------
 function listenRoom(roomId) {
   stopListening();
@@ -281,13 +271,10 @@ function stopListening() {
 }
 
 // ------------------------------------------------
-//  ROOM UPDATE HANDLER
+// ROOM UPDATE HANDLER
 // ------------------------------------------------
 function handleRoomUpdate(room) {
   tryPickUpWord(room);
-
-  // ✅ FIX BUG 3: Luôn check roundNumber thay đổi TRƯỚC khi route sang botBattle
-  //    Đảm bảo clearBotActionLog/clearSuspicion chạy ngay cả với phòng bot battle
   if (room.status === 'playing' && room.roundNumber !== S._lastRound) {
     S._lastRound = room.roundNumber;
     S.cardFlipped=false; S.cardConfirmed=false;
@@ -295,18 +282,14 @@ function handleRoomUpdate(room) {
     S.spyGuessSubmitted=false; _wordPickedUp=false;
     _autoBotVoteDone=false; _autoBotSpyGuessDone=false;
     if (_botBattleAdvanceTimer) { clearTimeout(_botBattleAdvanceTimer); _botBattleAdvanceTimer=null; }
-    clearBotActionLog();   // ✅ reset action log cho ván mới
-    clearSuspicion();      // ✅ reset suspicion cho ván mới
+    clearBotActionLog();
+    clearSuspicion();
   }
-
-  // Phòng bot battle: observer flow
   if (room.isBotBattle) {
     handleBotBattleFlow(room);
     return;
   }
-
   const status=room.status, cur=parseHash().screen;
-
   if (status==='waiting') {
     if (cur!=='lobby') nav('lobby',{room:S.roomId});
     renderLobby(room); return;
@@ -344,7 +327,7 @@ function handleRoomUpdate(room) {
 }
 
 // ------------------------------------------------
-//  WORD PICKUP
+// WORD PICKUP
 // ------------------------------------------------
 async function fetchMyWord(room) {
   if (S.myWord) { updateWordDisplay(); return; }
@@ -378,7 +361,7 @@ function tryPickUpWord(room) {
 }
 
 // ------------------------------------------------
-//  CLEAN OLD ROOMS
+// CLEAN OLD ROOMS
 // ------------------------------------------------
 async function cleanOldRooms() {
   try {
@@ -390,7 +373,7 @@ async function cleanOldRooms() {
 }
 
 // ------------------------------------------------
-//  CREATE / JOIN
+// CREATE / JOIN
 // ------------------------------------------------
 async function doCreateRoom() {
   const name=document.getElementById('create-name').value.trim();
@@ -412,7 +395,6 @@ async function doCreateRoom() {
   } catch(e){toast('❌ Lỗi: '+e.message);console.error(e);}
   finally{loading(false);}
 }
-
 async function doJoinRoom() {
   const code=document.getElementById('join-code').value.trim().toUpperCase();
   const name=document.getElementById('join-name').value.trim();
@@ -436,24 +418,21 @@ async function doJoinRoom() {
 }
 
 // ================================================
-//  BOT BATTLE ROOM
+// BOT BATTLE ROOM
 // ================================================
 async function doCreateBotBattle() {
   const maxRoundsEl = document.getElementById('bot-battle-rounds');
-  const maxRounds   = maxRoundsEl ? (parseInt(maxRoundsEl.value)||10) : 10;
+  const maxRounds = maxRoundsEl ? (parseInt(maxRoundsEl.value)||10) : 10;
   loading(true);
   try {
     await cleanOldRooms();
     let roomId, exists;
     do { roomId=genRoomCode(); exists=(await get(roomRef(roomId))).exists(); } while(exists);
-
     const observerId = 'obs_' + genId();
     S.roomId=roomId; S.playerId=observerId; S.playerName='👁 Observer';
     S.myWord=null; S.isBotBattle=true; S.isObserver=true;
     save();
-
     const kw = await getKeywords();
-
     const players = {};
     const usedNames = [];
     const fallbackRoster = ["Daydream","Kizuna","Anubis","Teth","Daleth","Fire","Water","Air","Melan","Earth"];
@@ -474,14 +453,12 @@ async function doCreateBotBattle() {
       }
       usedNames.push(botName);
       const botId = 'bot_' + genId();
-      // ✅ FIX BUG 2: Lưu avatarUrl đã fix CORS ngay khi tạo bot
       players[botId] = {
         id: botId, name: botName, ready:true, score:0,
         isBot:true, cardConfirmed:true,
         avatarUrl: fixDriveUrl(botAvatar)
       };
     }
-
     await set(roomRef(roomId), {
       id:roomId, createdAt:Date.now(), status:'waiting',
       hostId: Object.keys(players)[0],
@@ -491,13 +468,11 @@ async function doCreateBotBattle() {
       roundNumber: 0,
       players
     });
-
     await runTransaction(roomRef(), room => {
       if (!room) return room;
       beginRoundTx(room, kw);
       return room;
     });
-
     listenRoom(roomId);
     nav('botbattle', {room:roomId});
     toast('🤖 Phòng bot đang chạy...');
@@ -506,32 +481,26 @@ async function doCreateBotBattle() {
 }
 
 // ------------------------------------------------
-//  BOT BATTLE FLOW
+// BOT BATTLE FLOW
 // ------------------------------------------------
 function handleBotBattleFlow(room) {
   if (parseHash().screen !== 'botbattle') nav('botbattle', {room:S.roomId});
-
-  const status  = room.status;
+  const status = room.status;
   const players = room.playerList || Object.values(room.players||{});
-
   renderBotBattleObserver(room);
-
   if (status === 'waiting') return;
-
   if (status === 'playing') {
     autoBotConfirmCards(room);
     return;
   }
-
   if (status === 'discussing') {
     if (!S._inDiscussion) {
       S._inDiscussion = true;
       _lastRoom = room;
       S.earlyVoteChoice = null;
       S.earlyVoted = false;
-
-      const startAt  = room.round?.discussStartAt  || Date.now();
-      const duration = room.round?.discussDuration  || 90;
+      const startAt = room.round?.discussStartAt || Date.now();
+      const duration = room.round?.discussDuration || 90;
       S.timerRemaining = Math.max(0, duration - Math.floor((Date.now() - startAt) / 1000));
       if (S.timerInterval) clearInterval(S.timerInterval);
       S.timerRunning = true;
@@ -539,16 +508,10 @@ function handleBotBattleFlow(room) {
         S.timerRemaining = Math.max(0, S.timerRemaining - 1);
         if (S.timerRemaining === 0) { clearInterval(S.timerInterval); S.timerRunning = false; }
       }, 1000);
-
       initSuspicion(players);
-
-      // ✅ FIX BUG 2: Bot battle dùng round-table trong discussion screen riêng
-      // Không gọi buildRoundTable() vì botbattle screen không có #round-table
-      // Chỉ hiển thị overlay và chat
       injectBotBattleOverlay(room);
       startBotChatListener();
       scheduleBotHints(room);
-
       S.chatCollapsed = false;
       document.querySelector('#screen-botbattle .chat-panel')?.classList.remove('collapsed');
     } else {
@@ -557,13 +520,11 @@ function handleBotBattleFlow(room) {
     }
     return;
   }
-
   if (status === 'voting') {
     S._inDiscussion = false;
     if (!_autoBotVoteDone) autoBotVote(room);
     return;
   }
-
   if (status === 'votesummary') {
     S._inDiscussion = false;
     if (!_botBattleAdvanceTimer) {
@@ -574,13 +535,11 @@ function handleBotBattleFlow(room) {
     }
     return;
   }
-
   if (status === 'spyguess') {
     S._inDiscussion = false;
     autoBotSpyGuess(room);
     return;
   }
-
   if (status === 'result') {
     S._inDiscussion = false;
     if (!room._learnSent) {
@@ -588,7 +547,7 @@ function handleBotBattleFlow(room) {
       sendLearnPayload(room);
     }
     const done = room.botBattleRoundsDone || 0;
-    const max  = room.botBattleMaxRounds  || 10;
+    const max = room.botBattleMaxRounds || 10;
     if (done < max) {
       if (!_botBattleAdvanceTimer) {
         _botBattleAdvanceTimer = setTimeout(async () => {
@@ -600,7 +559,6 @@ function handleBotBattleFlow(room) {
     return;
   }
 }
-
 async function autoBotConfirmCards(room) {
   try {
     await runTransaction(roomRef(), r => {
@@ -609,18 +567,17 @@ async function autoBotConfirmCards(room) {
       if (Object.values(r.players).every(p => p.cardConfirmed)) {
         r.status = 'discussing';
         r.round.discussStartAt = Date.now();
-        r.round.chatStartTs    = Date.now();
+        r.round.chatStartTs = Date.now();
         delete r._wordAssignments;
       }
       return r;
     });
   } catch(e) { console.error('autoBotConfirmCards', e); }
 }
-
 async function autoBotVote(room) {
   _autoBotVoteDone = true;
   try {
-    const players  = Object.values(room.players||{});
+    const players = Object.values(room.players||{});
     const botVotes = {};
     for (const bot of players.filter(p => p.isBot && !p.eliminated)) {
       const candidates = players.filter(p => p.id !== bot.id && !p.eliminated);
@@ -639,28 +596,40 @@ async function autoBotVote(room) {
     });
   } catch(e) { console.error('autoBotVote', e); }
 }
-
 async function autoBotSpyGuess(room) {
   if (_autoBotSpyGuessDone) return;
   _autoBotSpyGuessDone = true;
   const spyId = room.round?.spyId;
-  const spy   = room.players?.[spyId];
+  const spy = room.players?.[spyId];
   if (!spy?.isBot) return;
+
   setTimeout(async () => {
     try {
       await runTransaction(roomRef(), r => {
         if (!r || r.status !== 'spyguess') return r;
-        const players = Object.values(r.players||{});
-        r.round.spyGuess = '???';
-        r.round.result   = 'villagers';
-        players.filter(p => p.id !== r.round.spyId).forEach(p => { p.score = (p.score||0)+1; });
+        const realWord = r.round.wordA;
+        // Bot spy đoán ngẫu nhiên (có cơ hội đúng)
+        const guessOptions = [realWord, "không biết", "???", randItem(["táo","cam","bàn","ghế","xe","nhà"])];
+        r.round.spyGuess = randItem(guessOptions);
+
+        const isCorrectGuess = r.round.spyGuess.toLowerCase() === realWord.toLowerCase();
+
+        if (isCorrectGuess) {
+          r.round.result = 'spy';
+          r.players[spyId].score = (r.players[spyId].score || 0) + 3;
+        } else {
+          r.round.result = 'villagers';
+          Object.values(r.players).forEach(p => {
+            if (p.id !== spyId) p.score = (p.score || 0) + 1;
+          });
+        }
+
         r.status = 'result';
         return r;
       });
     } catch(e) { console.error('autoBotSpyGuess', e); }
   }, 2500);
 }
-
 async function doNextRoundBotBattle() {
   loading(true);
   try {
@@ -674,12 +643,11 @@ async function doNextRoundBotBattle() {
       Object.values(room.players||{}).forEach(p => {
         p.ready=true; p.eliminated=false; p.cardConfirmed=true;
       });
-      room.round  = {votes:{},voteCounts:{},spyGuess:null,result:null};
+      room.round = {votes:{},voteCounts:{},spyGuess:null,result:null};
       room._learnSent = false;
       beginRoundTx(room, kw);
       return room;
     });
-    // ✅ FIX BUG 4: Reset action log và suspicion cho ván bot battle mới
     clearBotActionLog();
     clearSuspicion();
     _autoBotVoteDone=false; _autoBotSpyGuessDone=false;
@@ -689,28 +657,23 @@ async function doNextRoundBotBattle() {
 }
 
 // ------------------------------------------------
-//  BOT BATTLE OBSERVER UI
+// BOT BATTLE OBSERVER UI
 // ------------------------------------------------
 function renderBotBattleObserver(room) {
   const el = document.getElementById('botbattle-content');
   if (!el) return;
-
   const players = room.playerList || Object.values(room.players||{});
-  const status  = room.status;
-  const rd      = room.round || {};
-  const done    = room.botBattleRoundsDone || 0;
-  const max     = room.botBattleMaxRounds  || 10;
-
+  const status = room.status;
+  const rd = room.round || {};
+  const done = room.botBattleRoundsDone || 0;
+  const max = room.botBattleMaxRounds || 10;
   if (status === 'botbattle_end') { renderBotBattleEnd(room); return; }
-
   const statusLabel = {
     waiting:'⏳ Chuẩn bị...', playing:'🃏 Chia bài...',
     discussing:'💬 Thảo luận', voting:'🗳️ Bỏ phiếu',
     votesummary:'📊 Kết quả vote', spyguess:'🕵️ Spy đoán từ',
     result:'🏆 Kết quả ván'
   }[status] || status;
-
-  // Suspicion heatmap
   let suspHTML = '';
   const hasSusp = status === 'discussing' && Object.keys(_suspicionMap).length > 0;
   if (hasSusp) {
@@ -729,9 +692,9 @@ function renderBotBattleObserver(room) {
             ${players.map(target => {
               if (observer.id === target.id) return '<td style="background:#222;color:#555">—</td>';
               const score = _suspicionMap[observer.id]?.[target.id] ?? 10;
-              const pct   = score / 100;
-              const r2    = Math.round(50 + pct * 200);
-              const g2    = Math.round(180 - pct * 180);
+              const pct = score / 100;
+              const r2 = Math.round(50 + pct * 200);
+              const g2 = Math.round(180 - pct * 180);
               return `<td style="background:rgb(${r2},${g2},50);color:#fff;font-weight:bold;text-align:center">${Math.round(score)}</td>`;
             }).join('')}
           </tr>`).join('')}
@@ -740,8 +703,6 @@ function renderBotBattleObserver(room) {
       </div>
     </div>`;
   }
-
-  // Scoreboard
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
   const scoreHTML = `
   <div class="bb-section">
@@ -756,8 +717,6 @@ function renderBotBattleObserver(room) {
         ${p.eliminated ? '<span class="bb-badge elim">❌</span>' : ''}
       </div>`).join('')}
   </div>`;
-
-  // Chat log
   let chatHTML = '';
   if (_bbChatLog.length) {
     chatHTML = `
@@ -769,7 +728,6 @@ function renderBotBattleObserver(room) {
         </div>`).join('')}
     </div>`;
   }
-
   el.innerHTML = `
     <div class="bb-header">
       <div class="bb-title">🤖 BOT BATTLE</div>
@@ -784,12 +742,11 @@ function renderBotBattleObserver(room) {
     </div>
   `;
 }
-
 function renderBotBattleEnd(room) {
   const el = document.getElementById('botbattle-content');
   if (!el) return;
   const players = Object.values(room.players||{});
-  const sorted  = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
+  const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
   el.innerHTML = `
     <div class="bb-end">
       <div style="font-size:2.5rem;margin-bottom:8px">🏆</div>
@@ -807,7 +764,7 @@ function renderBotBattleEnd(room) {
 }
 
 // ================================================
-//  LOBBY
+// LOBBY
 // ================================================
 function renderLobby(room) {
   const players=room.playerList||Object.values(room.players||{});
@@ -816,12 +773,11 @@ function renderLobby(room) {
   const me=players.find(p=>p.id===S.playerId);
   const iAmReady=me?.ready||false, isHost=room.hostId===S.playerId;
   const botCount=players.filter(p=>p.isBot).length;
-
   document.getElementById('lobby-player-list').innerHTML=players.map(p=>{
     const b=[];
     if(p.id===room.hostId) b.push('<span class="pbadge host-badge">HOST</span>');
-    if(p.isBot)            b.push('<span class="pbadge bot-badge">🤖 BOT</span>');
-    if(p.id===S.playerId)  b.push('<span class="pbadge you-badge">BẠN</span>');
+    if(p.isBot) b.push('<span class="pbadge bot-badge">🤖 BOT</span>');
+    if(p.id===S.playerId) b.push('<span class="pbadge you-badge">BẠN</span>');
     b.push(p.ready?'<span class="pbadge ready-badge">✓ SẴN SÀNG</span>':'<span class="pbadge wait-badge">CHỜ...</span>');
     return `<div class="player-row${p.isBot?' bot-row':''}">
       <div class="lobby-avatar-wrap">${makeAvatarHtml(p)}</div>
@@ -829,22 +785,18 @@ function renderLobby(room) {
       <span style="display:flex;gap:5px">${b.join('')}</span>
     </div>`;
   }).join('');
-
   const btn=document.getElementById('btn-ready');
   if(iAmReady){btn.textContent='✕ HỦY';btn.className='btn full red';}
   else{btn.textContent='✓ SẴN SÀNG';btn.className='btn full green';}
   btn.style.maxWidth='320px';
-
   document.getElementById('bot-buttons').classList.toggle('hidden',!isHost);
   document.getElementById('btn-remove-bot').classList.toggle('hidden',!(isHost&&botCount>0));
-
   const readyCount=players.filter(p=>p.ready).length;
   const st=document.getElementById('lobby-status-text');
   if(players.length<3){st.textContent=`Cần ít nhất 3 người (hiện có ${players.length})`;st.className='muted dots';}
   else if(readyCount<players.length){st.textContent=`${readyCount}/${players.length} đã sẵn sàng...`;st.className='muted dots';}
   else{st.textContent='Tất cả sẵn sàng! Đang bắt đầu...';st.className='muted';}
 }
-
 async function doToggleReady() {
   loading(true);
   try {
@@ -859,7 +811,6 @@ async function doToggleReady() {
   } catch(e){toast('Lỗi: '+e.message);console.error(e);}
   finally{loading(false);}
 }
-
 async function doAddBot() {
   loading(true);
   try {
@@ -870,7 +821,6 @@ async function doAddBot() {
     const players = Object.values(room.players || {});
     if (players.length >= 8) { toast('Phòng đầy!'); loading(false); return; }
     const usedNames = players.map(p => p.name);
-
     let botName = '', botAvatar = '';
     try {
       const resp = await fetch(GAS_URL, {
@@ -880,12 +830,10 @@ async function doAddBot() {
       const data = await resp.json();
       botName = data.name||''; botAvatar = data.avatarUrl||'';
     } catch(e) { console.warn('bot_roster GAS error:', e); }
-
     if (!botName) {
       const roster=["Daydream","Kizuna","Anubis","Teth","Daleth","Fire","Water","Air","Melan","Earth"];
       botName = roster.find(n=>!usedNames.includes(n)) || ('Spirit #'+genId().slice(0,4));
     }
-
     await runTransaction(roomRef(), room => {
       if (!room || room.status !== 'waiting') return room;
       if (Object.values(room.players||{}).length >= 8) return room;
@@ -902,7 +850,6 @@ async function doAddBot() {
   } catch(e) { toast('Lỗi: '+e.message); console.error(e); }
   finally { loading(false); }
 }
-
 async function doRemoveBot() {
   loading(true);
   try {
@@ -917,7 +864,7 @@ async function doRemoveBot() {
 }
 
 // ------------------------------------------------
-//  BEGIN ROUND
+// BEGIN ROUND
 // ------------------------------------------------
 function beginRoundTx(room, keywords) {
   const row=randItem(keywords), shuffled=[...row].sort(()=>Math.random()-.5);
@@ -939,7 +886,7 @@ function beginRoundTx(room, keywords) {
 }
 
 // ------------------------------------------------
-//  CARD
+// CARD
 // ------------------------------------------------
 function showCardScreen(room) {
   const el=document.getElementById('cf-word'); if(el) el.textContent=S.myWord||'...';
@@ -982,11 +929,10 @@ async function doConfirmCard() {
 }
 
 // ------------------------------------------------
-//  DISCUSSION SCREEN
+// DISCUSSION SCREEN
 // ------------------------------------------------
 let _botHintTimers = [];
 let _lastRoom = null;
-
 function startDiscussionScreen(room) {
   if (S._inDiscussion) {
     _lastRoom=room; updateTableAvatars(room); updateDiscVoteStatus(room); return;
@@ -995,13 +941,10 @@ function startDiscussionScreen(room) {
   _lastRoom=room;
   S.earlyVoteChoice=null;
   S.earlyVoted=!!(room.round?.earlyVotes?.[S.playerId]);
-
   const players = room.playerList || Object.values(room.players||{});
   initSuspicion(players);
-
   document.getElementById('tb-round-badge').textContent='VÒNG '+(room.roundNumber||1);
   document.getElementById('tb-word-display').textContent=S.myWord||'—';
-
   const startAt=room.round?.discussStartAt||Date.now();
   const duration=room.round?.discussDuration||120;
   S.timerRemaining=Math.max(0,duration-Math.floor((Date.now()-startAt)/1000));
@@ -1013,20 +956,16 @@ function startDiscussionScreen(room) {
     updateTableTimer();
     if(S.timerRemaining===0){clearInterval(S.timerInterval);S.timerRunning=false;doTimeUpVoting();}
   },1000);
-
   const tie=document.getElementById('table-tie-banner');
   if(tie) tie.style.display=room.round?.isTie?'block':'none';
-
   buildRoundTable(room);
   startChatListener();
   scheduleBotHints(room);
-
   S.chatCollapsed=true; S.chatUnread=0;
   document.querySelector('.chat-panel')?.classList.add('collapsed');
   document.getElementById('chat-unread-badge').classList.remove('show');
   nav('discussion',{room:S.roomId});
 }
-
 function updateTableTimer() {
   const m=Math.floor(S.timerRemaining/60), s=S.timerRemaining%60;
   const el=document.getElementById('tb-timer');
@@ -1034,18 +973,16 @@ function updateTableTimer() {
   el.textContent=`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   el.classList.toggle('urgent',S.timerRemaining<=30&&S.timerRemaining>0);
 }
-
 function buildRoundTable(room) {
   const players=room.playerList||Object.values(room.players||{});
   const n=players.length;
   const tableEl=document.getElementById('round-table');
-  if(!tableEl) return;  // ✅ guard: không crash nếu element không tồn tại
+  if(!tableEl) return;
   tableEl.querySelectorAll('.table-player').forEach(el=>el.remove());
   const size=tableEl.offsetWidth||300;
   const cx=size/2, cy=size/2, r=size*0.42;
   const me=players.find(p=>p.id===S.playerId);
   const iAmEliminated=me?.eliminated||false;
-
   players.forEach((p,i)=>{
     const angle=(2*Math.PI*i/n)-Math.PI/2;
     const x=cx+r*Math.cos(angle), y=cy+r*Math.sin(angle);
@@ -1060,7 +997,6 @@ function buildRoundTable(room) {
     const canClick=!iAmEliminated&&!isMe&&!p.eliminated&&!S.earlyVoted&&!S.isObserver;
     const hasVoted=!!(room.round?.earlyVotes?.[p.id]||room.round?.votes?.[p.id]);
     const avatarContent=makeAvatarHtml(p,'100%',true);
-
     wrap.innerHTML=`
       <div class="speech-bubble ${arrDir}" id="bubble-${p.id}"></div>
       <div class="avatar${isMe?' is-me':''}${p.eliminated?' eliminated':''}${canClick?' vote-target':''}" id="avatar-${p.id}" style="${canClick?'cursor:pointer;':''}">
@@ -1078,7 +1014,6 @@ function buildRoundTable(room) {
   document.getElementById('table-center-text').textContent=`${players.filter(p=>!p.eliminated).length} người`;
   updateDiscVoteStatus(room);
 }
-
 function handleAvatarVoteClick(targetId, players) {
   if(S.earlyVoted) return;
   S.earlyVoteChoice = S.earlyVoteChoice===targetId ? null : targetId;
@@ -1091,7 +1026,6 @@ function handleAvatarVoteClick(targetId, players) {
   });
   updateAvatarVoteBtn();
 }
-
 function updateAvatarVoteBtn() {
   let btn=document.getElementById('avatar-vote-confirm-btn');
   if(!S.earlyVoteChoice){ if(btn) btn.remove(); return; }
@@ -1104,7 +1038,6 @@ function updateAvatarVoteBtn() {
     document.body.appendChild(btn);
   }
 }
-
 function updateTableAvatars(room) {
   if(!room) return;
   _lastRoom=room;
@@ -1123,7 +1056,6 @@ function updateTableAvatars(room) {
   });
   updateDiscVoteStatus(room);
 }
-
 function updateDiscVoteStatus(room) {
   if(!room) return;
   const players=room.playerList||Object.values(room.players||{});
@@ -1137,7 +1069,6 @@ function updateDiscVoteStatus(room) {
   const vn=document.getElementById('disc-voted-notice');
   if(vn) vn.style.display=(S.earlyVoted&&!iAmEliminated)?'block':'none';
 }
-
 async function doEarlyVote() {
   if(!S.earlyVoteChoice){toast('Hãy chọn!');return;}
   S.earlyVoted=true; loading(true);
@@ -1165,20 +1096,18 @@ async function doEarlyVote() {
   } catch(e){toast('Lỗi: '+e.message);S.earlyVoted=false;}
   finally{loading(false);}
 }
-
 function showBubble(playerId, text, dur=4000) {
   const el=document.getElementById(`bubble-${playerId}`);
   if(!el) return;
   el.textContent=text; el.classList.add('show');
   setTimeout(()=>el.classList.remove('show'),dur);
 }
-
 function setAvatarSpeaking(playerId, on) {
   document.getElementById(`avatar-${playerId}`)?.classList.toggle('speaking',on);
 }
 
 // ------------------------------------------------
-//  GAS CALL
+// GAS CALL
 // ------------------------------------------------
 async function callGAS(payload) {
   const resp = await fetch(GAS_URL, {
@@ -1192,7 +1121,7 @@ async function callGAS(payload) {
 }
 
 // ------------------------------------------------
-//  BOT AI
+// BOT AI
 // ------------------------------------------------
 function scheduleBotHints(room) {
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
@@ -1200,7 +1129,6 @@ function scheduleBotHints(room) {
   const bots=players.filter(p=>p.isBot&&!p.eliminated);
   if(!bots.length) return;
   const duration=(room.round?.discussDuration||90)*1000;
-
   bots.forEach((bot, botIndexInRoom) => {
     const numActions=2+Math.floor(Math.random()*2);
     const usedSlots=new Set();
@@ -1213,7 +1141,6 @@ function scheduleBotHints(room) {
     }
   });
 }
-
 async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
   const curScreen = parseHash().screen;
   if (curScreen !== 'discussion' && !S.isBotBattle) return;
@@ -1221,12 +1148,10 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
   if (!room) return;
   const botCurrent = Object.values(room.players||{}).find(p=>p.id===bot.id);
   if (!botCurrent||botCurrent.eliminated) return;
-
-  const isSpy  = bot.id===room.round?.spyId;
-  const word   = isSpy ? room.round?.wordB : room.round?.wordA;
+  const isSpy = bot.id===room.round?.spyId;
+  const word = isSpy ? room.round?.wordB : room.round?.wordA;
   const players= room.playerList||Object.values(room.players||{});
   const others = players.filter(p=>p.id!==bot.id&&!p.eliminated);
-
   let recentChat='', recentMsgs=[];
   try {
     const chatSnap=await get(ref(db,'rooms/'+S.roomId+'/chat'));
@@ -1235,8 +1160,6 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
       recentChat=recentMsgs.map(m=>m.name+': '+(m.text||m.reaction||'')).join('\n');
     }
   } catch(e){}
-
-  // Chọn action
   let action;
   if(actionIndex===0){
     action='hint';
@@ -1246,8 +1169,6 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
     );
     action = isMentioned ? 'defend' : randItem(['hint','accuse','accuse','react','react']);
   }
-
-  // Chọn suspect: ưu tiên suspicion map
   let suspect = null;
   if (action==='accuse') {
     suspect = getTopSuspect(bot.id, others) || (others.length?randItem(others):null);
@@ -1259,47 +1180,41 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
       ? (isSpy ? mostActive[0] : randItem(mostActive.slice(0,2).length?mostActive.slice(0,2):mostActive))
       : null;
   }
-
-  const gameId   = S.roomId + '_' + (room.roundNumber||0);
+  const gameId = S.roomId + '_' + (room.roundNumber||0);
   const botIndex = botIndexInRoom !== undefined ? botIndexInRoom
     : players.filter(p=>p.isBot&&!p.eliminated).findIndex(b=>b.id===bot.id);
-
   const suspicionContext = serializeSuspicion(bot.id, others);
-
   setAvatarSpeaking(bot.id, true);
   let finalText='', usedFallback=false;
-
   try {
     finalText = await callGAS({
       action,
-      botName:          bot.name,
+      botName: bot.name,
       word, isSpy,
-      wordA:            room.round?.wordA,
-      wordB:            room.round?.wordB,
+      wordA: room.round?.wordA,
+      wordB: room.round?.wordB,
       recentChat,
-      suspectName:      suspect?.name||'',
-      players:          others.map(p=>p.name),
-      allNames:         players.map(p=>p.name),
+      suspectName: suspect?.name||'',
+      players: others.map(p=>p.name),
+      allNames: players.map(p=>p.name),
       gameId, botIndex,
       suspicionContext
     });
-
     const allIds = players.map(p=>p.id);
     updateSuspicion(bot.id, action, finalText, suspect?.id||null, allIds, room.round);
-
     showBubble(bot.id, finalText, 5000);
     postBotChat(bot, finalText);
   } catch(e) {
     usedFallback=true;
     const sn=suspect?.name||'';
     const fallbacks={
-      hint:   isSpy?['Ờ tôi hiểu từ này...','Quen quen...','Tôi biết mà']
+      hint: isSpy?['Ờ tôi hiểu từ này...','Quen quen...','Tôi biết mà']
                    :['Rõ ràng quá còn gì','Tôi chắc 100%','Không cần đoán nhiều'],
       accuse: sn?[sn+' nói cứ sai sai','Tôi thấy '+sn+' mơ hồ lắm',sn+' không tự tin gì cả']
                 :['Có người đang nói mơ hồ lắm'],
       defend: isSpy?['Oan tôi quá!','Không phải tôi đâu nha']
                    :['Tôi biết từ này chắc như đinh','Nghi oan tôi rồi!'],
-      react:  ['Đúng đúng!','Ờ cũng có lý','Hmm đáng ngờ thật','Lạ nhỉ...'],
+      react: ['Đúng đúng!','Ờ cũng có lý','Hmm đáng ngờ thật','Lạ nhỉ...'],
     };
     finalText=randItem(fallbacks[action]||fallbacks.react);
     const allIds=players.map(p=>p.id);
@@ -1307,9 +1222,7 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
     showBubble(bot.id, finalText, 4000);
     postBotChat(bot, finalText);
   }
-
   logBotAction(bot.id, action, finalText, suspect?.name||'');
-
   if (!usedFallback) {
     sendActionToGAS({
       action:'log_action', gameId,
@@ -1321,14 +1234,11 @@ async function triggerBotAction(bot, actionIndex, botIndexInRoom) {
       keywordList:[room.round?.wordA,room.round?.wordB].filter(Boolean),
     });
   }
-
   setTimeout(()=>setAvatarSpeaking(bot.id,false), 5500);
 }
-
 function sendActionToGAS(payload) {
   fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(payload)}).catch(()=>{});
 }
-
 async function getBotVoteTarget(bot, room) {
   const players=Object.values(room.players||{});
   const candidates=players.filter(p=>p.id!==bot.id&&!p.eliminated);
@@ -1357,10 +1267,9 @@ async function getBotVoteTarget(bot, room) {
 }
 
 // ------------------------------------------------
-//  CHAT
+// CHAT
 // ------------------------------------------------
 const REACTIONS=['😂','🤔','😱','👀','🤥','✅'];
-
 function startChatListener() {
   if(S.chatListener) S.chatListener();
   const r=chatRef();
@@ -1369,7 +1278,6 @@ function startChatListener() {
   const cutoff=_lastRoom?.round?.chatStartTs||_lastRoom?.round?.discussStartAt||0;
   let _renderedIds=new Set();
   _bbChatLog=[];
-
   const unsubscribe=onValue(r,snap=>{
     if(!snap.exists()) return;
     const sorted=Object.values(snap.val()||{}).sort((a,b)=>a.ts-b.ts);
@@ -1399,7 +1307,6 @@ function startChatListener() {
   });
   S.chatListener=()=>{unsubscribe();S.chatListener=null;};
 }
-
 function appendChatMsg(m) {
   const msgs=document.getElementById('chat-messages');
   if(!msgs) return;
@@ -1424,7 +1331,6 @@ function appendChatMsg(m) {
   if(m.text) showBubble(m.pid,m.text.length>40?m.text.slice(0,40)+'…':m.text,4000);
   if(m.reaction) showBubble(m.pid,m.reaction,2500);
 }
-
 async function postBotChat(bot,text) {
   try {
     await set(ref(db,`rooms/${S.roomId}/chat/${genId()}`),{
@@ -1432,7 +1338,6 @@ async function postBotChat(bot,text) {
     });
   } catch(e){}
 }
-
 async function doSendChat(e) {
   if(e&&e.key&&e.key!=='Enter') return;
   const inp=document.getElementById('chat-inp');
@@ -1444,7 +1349,6 @@ async function doSendChat(e) {
     });
   } catch(e){console.error(e);}
 }
-
 async function doSendReaction(emoji) {
   try {
     await set(ref(db,`rooms/${S.roomId}/chat/${genId()}`),{
@@ -1452,7 +1356,6 @@ async function doSendReaction(emoji) {
     });
   } catch(e){}
 }
-
 function toggleChat() {
   S.chatCollapsed=!S.chatCollapsed;
   document.querySelector('.chat-panel')?.classList.toggle('collapsed',S.chatCollapsed);
@@ -1465,7 +1368,7 @@ function toggleChat() {
 }
 
 // ------------------------------------------------
-//  TIME-UP VOTING
+// TIME-UP VOTING
 // ------------------------------------------------
 async function doTimeUpVoting() {
   if(S.timerInterval) clearInterval(S.timerInterval);
@@ -1499,7 +1402,7 @@ async function doTimeUpVoting() {
 }
 
 // ------------------------------------------------
-//  VOTE SCREEN
+// VOTE SCREEN
 // ------------------------------------------------
 function renderVote(room) {
   S.selectedVote=null;
@@ -1510,7 +1413,6 @@ function renderVote(room) {
   if(alreadyEarlyVoted) S.votedThisRound=true;
   const grid=document.getElementById('vote-grid');
   grid.innerHTML='';
-
   if(iAmEliminated){
     document.getElementById('btn-confirm-vote').style.display='none';
     document.getElementById('vote-waiting').style.display='none';
@@ -1545,7 +1447,6 @@ function renderVote(room) {
   }
   updateVoteStatus(room);
 }
-
 function startVoteTimer(room) {
   if(S.voteTimerInterval) clearInterval(S.voteTimerInterval);
   const deadline=room.round?.voteDeadline||(Date.now()+10000);
@@ -1557,7 +1458,6 @@ function startVoteTimer(room) {
   }
   tick(); S.voteTimerInterval=setInterval(tick,500);
 }
-
 function renderSpectatorVotes(room) {
   const players=room.playerList||Object.values(room.players||{});
   const vc={}; players.forEach(p=>{vc[p.id]=0;});
@@ -1573,7 +1473,6 @@ function renderSpectatorVotes(room) {
         <div style="font-family:'Bebas Neue';font-size:1.4rem;color:var(--red)">${vc[p.id]}</div>
       </div>`).join('')}`;
 }
-
 function updateVoteStatus(room) {
   const players=room.playerList||Object.values(room.players||{});
   const me=players.find(p=>p.id===S.playerId);
@@ -1588,7 +1487,6 @@ function updateVoteStatus(room) {
     document.getElementById('vote-waiting').style.display='block';
   }
 }
-
 async function doVote() {
   const choice=S.selectedVote||'abstain';
   if(!S.selectedVote) toast('⏰ Hết giờ — tự bỏ phiếu trắng');
@@ -1608,7 +1506,7 @@ async function doVote() {
 }
 
 // ------------------------------------------------
-//  RESOLVE VOTES
+// RESOLVE VOTES
 // ------------------------------------------------
 function resolveVotesTx(room) {
   const players=Object.values(room.players||{});
@@ -1617,7 +1515,6 @@ function resolveVotesTx(room) {
   const maxV=Math.max(0,...Object.values(vc));
   const topIds=Object.entries(vc).filter(([,cnt])=>cnt===maxV).map(([id])=>id);
   room.round.voteCounts=vc;
-
   if(maxV===0||topIds.length>1){
     room.round.isTie=true; room.round.eliminatedId=null; room.round.eliminatedName=null;
     room.round._nextStatus='discussing'; room.status='votesummary'; return;
@@ -1628,13 +1525,11 @@ function resolveVotesTx(room) {
   const eliminated=room.players[mostId];
   room.round.eliminatedName=eliminated?.name||'?';
   if(eliminated) eliminated.eliminated=true;
-
   if(mostId===room.round.spyId){
     const spy=room.players[room.round.spyId];
     if(spy?.isBot){
-      room.round.spyGuess='???'; room.round.result='villagers';
-      players.filter(p=>p.id!==room.round.spyId).forEach(p=>{p.score=(p.score||0)+1;});
-      room.round._nextStatus='result';
+      // autoBotSpyGuess sẽ xử lý sau
+      room.round._nextStatus='spyguess';
     } else { room.round._nextStatus='spyguess'; }
   } else {
     const active=players.filter(p=>!p.eliminated);
@@ -1649,10 +1544,9 @@ function resolveVotesTx(room) {
 }
 
 // ------------------------------------------------
-//  VOTE SUMMARY
+// VOTE SUMMARY
 // ------------------------------------------------
 let _summaryTimer=null;
-
 function showVoteSummary(room) {
   const rd=room.round, players=room.playerList||Object.values(room.players||{});
   const vc=rd.voteCounts||{}, isTie=rd.isTie||false;
@@ -1676,7 +1570,6 @@ function showVoteSummary(room) {
   },1000);
   nav('votesummary',{room:S.roomId});
 }
-
 async function advanceAfterSummary() {
   await runTransaction(roomRef(),room=>{
     if(!room||room.status!=='votesummary') return room;
@@ -1693,7 +1586,7 @@ async function advanceAfterSummary() {
 }
 
 // ------------------------------------------------
-//  SPY GUESS
+// SPY GUESS
 // ------------------------------------------------
 function showSpyGuess(room) {
   const players=room.playerList||Object.values(room.players||{});
@@ -1705,7 +1598,6 @@ function showSpyGuess(room) {
   document.getElementById('sg-input').value=''; S.spyGuessSubmitted=false;
   nav('spyguess',{room:S.roomId});
 }
-
 async function doSpyGuess() {
   const guess=document.getElementById('sg-input').value.trim();
   if(!guess){toast('Nhập đáp án!');return;}
@@ -1727,7 +1619,7 @@ async function doSpyGuess() {
 }
 
 // ------------------------------------------------
-//  LEARN — ✅ FIX BUG 1: ghi bot_memory đúng
+// LEARN
 // ------------------------------------------------
 async function sendLearnPayload(room) {
   try {
@@ -1736,50 +1628,45 @@ async function sendLearnPayload(room) {
     if(!bots.length) return;
     const gameId=S.roomId+'_'+(room.roundNumber||0);
     const allNames=players.map(p=>p.name);
-
     const botsPayload=bots.map(bot=>{
       const isSpy=bot.id===rd.spyId;
       const votedForId=rd.votes?.[bot.id]||null;
       const votedForName=votedForId?(players.find(p=>p.id===votedForId)?.name||null):null;
       const wasVotedBy=Object.entries(rd.votes||{})
         .filter(([,tid])=>tid===bot.id).map(([pid])=>players.find(p=>p.id===pid)?.name||pid);
-
-      // ✅ Đảm bảo actions luôn có dữ liệu, kể cả khi log rỗng
       const rawActions = _botActionLog[bot.id] || [];
       const actions = rawActions.map(a=>({
         type: a.type,
         text: a.text,
         suspectName: a.suspectName || ''
       }));
-
       return {
-        botName:    bot.name,
-        role:       isSpy ? 'spy' : 'villager',
-        won:        rd.result === (isSpy ? 'spy' : 'villagers'),
-        word:       isSpy ? rd.wordB : rd.wordA,
-        wordA:      rd.wordA,
-        wordB:      rd.wordB,
+        botName: bot.name,
+        role: isSpy ? 'spy' : 'villager',
+        won: rd.result === (isSpy ? 'spy' : 'villagers'),
+        word: isSpy ? rd.wordB : rd.wordA,
+        wordA: rd.wordA,
+        wordB: rd.wordB,
         actions,
-        votedFor:      votedForName,
-        _votedForId:   votedForId,
+        votedFor: votedForName,
+        _votedForId: votedForId,
         wasVotedBy,
-        spyId:         rd.spyId
+        spyId: rd.spyId
       };
     });
-
     sendActionToGAS({
-      action:      'learn',
+      action: 'learn',
       gameId,
-      playerList:  players.map(p=>p.name),
+      playerList: players.map(p=>p.name),
       keywordList: [rd.wordA, rd.wordB].filter(Boolean),
       allNames,
-      bots:        botsPayload
+      bots: botsPayload
     });
   } catch(e) { console.warn('sendLearnPayload error:',e); }
 }
 
 // ------------------------------------------------
-//  RESULT
+// RESULT
 // ------------------------------------------------
 function showResult(room) {
   const rd=room.round, players=room.playerList||Object.values(room.players||{});
@@ -1805,7 +1692,7 @@ function showResult(room) {
 }
 
 // ------------------------------------------------
-//  NEXT ROUND / LEAVE
+// NEXT ROUND / LEAVE
 // ------------------------------------------------
 async function doNextRound() {
   loading(true);
@@ -1821,12 +1708,11 @@ async function doNextRound() {
   } catch(e){toast('Lỗi: '+e.message);}
   finally{loading(false);}
 }
-
 async function doLeave() {
   stopListening();
-  if(S.timerInterval)      clearInterval(S.timerInterval);
-  if(S.voteTimerInterval)  clearInterval(S.voteTimerInterval);
-  if(_summaryTimer)        clearInterval(_summaryTimer);
+  if(S.timerInterval) clearInterval(S.timerInterval);
+  if(S.voteTimerInterval) clearInterval(S.voteTimerInterval);
+  if(_summaryTimer) clearInterval(_summaryTimer);
   if(_botBattleAdvanceTimer){clearTimeout(_botBattleAdvanceTimer);_botBattleAdvanceTimer=null;}
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   clearBotActionLog();
@@ -1854,7 +1740,7 @@ async function doLeave() {
 }
 
 // ------------------------------------------------
-//  BOT BATTLE OVERLAY
+// BOT BATTLE OVERLAY
 // ------------------------------------------------
 function injectBotBattleOverlay(room) {
   removeBotBattleOverlay();
@@ -1873,7 +1759,6 @@ function injectBotBattleOverlay(room) {
   `;
   document.body.appendChild(el);
 }
-
 function updateBotBattleOverlay(room) {
   const el = document.getElementById('bb-overlay');
   if (!el) { injectBotBattleOverlay(room); return; }
@@ -1882,13 +1767,12 @@ function updateBotBattleOverlay(room) {
   const d = el.querySelector('.bb-active-count');
   if (d) d.textContent = `Còn lại: ${activeCount} người`;
 }
-
 function removeBotBattleOverlay() {
   document.getElementById('bb-overlay')?.remove();
 }
 
 // ------------------------------------------------
-//  BOT BATTLE CHAT LISTENER
+// BOT BATTLE CHAT LISTENER
 // ------------------------------------------------
 function startBotChatListener() {
   if (S.chatListener) S.chatListener();
@@ -1898,7 +1782,6 @@ function startBotChatListener() {
   const cutoff = _lastRoom?.round?.chatStartTs || _lastRoom?.round?.discussStartAt || 0;
   let _renderedIds = new Set();
   _bbChatLog = [];
-
   const unsubscribe = onValue(r, snap => {
     if (!snap.exists()) return;
     const sorted = Object.values(snap.val() || {}).sort((a, b) => a.ts - b.ts);
@@ -1913,7 +1796,6 @@ function startBotChatListener() {
       _bbChatLog.push(m);
       if (_bbChatLog.length > 50) _bbChatLog.shift();
       appendBotChatMsg(m);
-      // Cập nhật suspicion từ tin nhắn mới
       if (m.pid && m.text && _lastRoom) {
         const allPlayers = Object.values(_lastRoom.players||{});
         const allIds = allPlayers.map(p=>p.id);
@@ -1940,7 +1822,6 @@ function startBotChatListener() {
   });
   S.chatListener = () => { unsubscribe(); S.chatListener = null; };
 }
-
 function appendBotChatMsg(m) {
   const msgs = document.getElementById('bb-chat-messages');
   if (!msgs) return;
@@ -1962,11 +1843,9 @@ function appendBotChatMsg(m) {
         : `<div class="chat-msg-text">${esc(m.text||'')}</div>`}
     </div>`;
   msgs.appendChild(div);
-  // ✅ FIX BUG 1: Dùng showBubble (đúng tên), không phải showBotBubble (undefined)
-  const txt = m.text || m.reaction || '';
-  showBubble(m.pid, txt.length > 40 ? txt.slice(0, 40) + '…' : txt, 4000);
+  // Đã xóa showBubble vì observer mode không có bubble
+  // Nếu muốn tooltip, có thể thêm hàm showBotTooltip riêng
 }
-
 function toggleBotChat() {
   S.chatCollapsed = !S.chatCollapsed;
   document.querySelector('#screen-botbattle .chat-panel')?.classList.toggle('collapsed', S.chatCollapsed);
@@ -1979,7 +1858,7 @@ function toggleBotChat() {
 }
 
 // ------------------------------------------------
-//  INIT
+// INIT
 // ------------------------------------------------
 load();
 const{screen:initScreen,params:initParams}=parseHash();
@@ -1988,7 +1867,6 @@ if(initScreen==='join'&&initParams.room){
   const el=document.getElementById('join-code'); if(el) el.value=initParams.room;
 }
 if(S.roomId&&S.playerId&&!['home','create','join','rules'].includes(initScreen)) listenRoom(S.roomId);
-
 const rp=document.getElementById('reaction-picker');
 if(rp) REACTIONS.forEach(e=>{
   const btn=document.createElement('button');
