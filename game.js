@@ -60,6 +60,7 @@ const S = {
   _lastRound:null, _lastStatus:null,
   isBotBattle:false,
   isObserver:false,
+  botBattleRenderInterval: null,   // ← THÊM DÒNG NÀY
 };
 let _wordPickedUp = false;
 let _autoBotVoteDone = false;
