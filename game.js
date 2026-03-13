@@ -672,7 +672,7 @@ async function doNextRoundBotBattle() {
 
 // ------------------------------------------------
 // BOT BATTLE OBSERVER UI
-// 2. renderBotBattleObserver (đã fix đầy đủ: suspicion luôn hiện + vòng tròn avatar to + timer)
+// ====================== RENDER BOT BATTLE – BÀN TRÒN THẬT ======================
 function renderBotBattleObserver(room) {
   const el = document.getElementById('botbattle-content');
   if (!el) return;
@@ -695,7 +695,7 @@ function renderBotBattleObserver(room) {
     result:'🏆 Kết quả ván'
   }[status] || status;
 
-  // Timer liên tục
+  // Timer chạy liên tục
   let timerHTML = '';
   if (status === 'discussing') {
     const m = Math.floor(S.timerRemaining / 60);
@@ -703,16 +703,28 @@ function renderBotBattleObserver(room) {
     timerHTML = `<div style="font-size:1.6rem;font-weight:bold;color:#ff4444;margin:12px 0;text-align:center">⏰ ${m}:${s}</div>`;
   }
 
-  // Vòng tròn avatar (bàn tròn mini - giống phòng player)
-  const miniAvatars = players.map(p => `
-    <div style="text-align:center;margin:0 10px;">
-      <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;margin:auto;border:3px solid ${p.id===rd.spyId?'#ff4444':'#666'};box-shadow:0 0 10px rgba(255,68,68,0.3)">
-        ${makeAvatarHtml(p, '56px', true)}
-      </div>
-      <div style="font-size:0.85rem;margin-top:4px;white-space:nowrap">${esc(p.name.split(' ')[0])}</div>
-      ${p.id===rd.spyId ? '<span style="color:#ff4444;font-size:1.1rem">🕵️</span>' : ''}
-    </div>`).join('');
-
+  // ==================== BÀN TRÒN VÀNG – BOT XUNG QUANH ====================
+  const n = players.length;
+  let circleHTML = `
+  <div style="position:relative;width:320px;height:320px;margin:20px auto;">
+    <!-- Vòng tròn vàng chính -->
+    <div style="position:absolute;width:320px;height:320px;border:4px solid #ff0;border-radius:50%;background:rgba(255,255,0,0.05);box-shadow:0 0 30px #ff0;"></div>
+    
+    ${players.map((p, i) => {
+      const angle = (2 * Math.PI * i / n) - Math.PI / 2;
+      const x = 160 + 125 * Math.cos(angle);
+      const y = 160 + 125 * Math.sin(angle);
+      const isSpy = p.id === rd.spyId;
+      return `
+      <div style="position:absolute;left:${x-28}px;top:${y-28}px;width:56px;height:56px;text-align:center;">
+        <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;border:3px solid ${isSpy?'#ff4444':'#fff'};box-shadow:0 0 12px ${isSpy?'#ff4444':'#666'};margin:auto;">
+          ${makeAvatarHtml(p, '56px', true)}
+        </div>
+        <div style="font-size:0.85rem;margin-top:4px;color:#fff;white-space:nowrap">${esc(p.name.split(' ')[0])}</div>
+        ${isSpy ? '<div style="color:#ff4444;font-size:1.1rem">🕵️</div>' : ''}
+      </div>`;
+    }).join('')}
+  </div>`;
   // Ma trận nghi ngờ - LUÔN HIỆN khi thảo luận
   let suspHTML = '';
   if (status === 'discussing') {
