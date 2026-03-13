@@ -1896,17 +1896,17 @@ function updateBotBattleOverlay(room) {
   const done = room.botBattleRoundsDone || 0;
   const max  = room.botBattleMaxRounds  || 10;
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
-  overlay.innerHTML =
-    '<div style="font-family:'Bebas Neue';font-size:.72rem;letter-spacing:.1em;opacity:.45;margin-bottom:5px">🤖 VÁN ' + (done+1) + '/' + max + '</div>' + sorted.map((p,i) => {
-      const isSpy = p.id === rd.spyId;
-      const col = i===0?'gold':i===1?'#ccc':'#cd7f32';
-      return '<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px">' +
-        '<span style="font-family:'Bebas Neue';color:'+col+';font-size:.78rem;width:16px">#'+(i+1)+'</span>' +
-        '<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7rem">' + esc(p.name) + '</span>' +
-        (isSpy ? '<span style="color:#e74c3c;font-size:.6rem">🕵️</span>' : '') +
-        '<span style="font-family:'Bebas Neue';font-size:.82rem">' + (p.score||0) + '</span>' +
-        '</div>';
-    }).join('');
+  const bbRows = sorted.map((p,i) => {
+    const isSpy = p.id === rd.spyId;
+    const col = i===0?'gold':i===1?'#ccc':'#cd7f32';
+    return `<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px">
+      <span style="font-family:'Bebas Neue';color:${col};font-size:.78rem;width:16px">#${i+1}</span>
+      <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7rem">${esc(p.name)}</span>
+      ${isSpy ? '<span style="color:#e74c3c;font-size:.6rem">🕵️</span>' : ''}
+      <span style="font-family:'Bebas Neue';font-size:.82rem">${p.score||0}</span>
+    </div>`;
+  }).join('');
+  overlay.innerHTML = `<div style="font-family:'Bebas Neue';font-size:.72rem;letter-spacing:.1em;opacity:.45;margin-bottom:5px">🤖 VÁN ${done+1}/${max}</div>${bbRows}`;
 }
 
 function removeBotBattleOverlay() {
