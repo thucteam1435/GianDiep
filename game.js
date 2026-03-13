@@ -676,7 +676,7 @@ async function doNextRoundBotBattle() {
 // RENDER BOT BATTLE (ĐÃ FIX)
 // ------------------------------------------------
 function renderBotBattleObserver(room) {
-  const el = document.getElementById('botbattle-content');
+  const el = document.getElementById('botbattle-content').style.pointerEvents = 'auto';
   if (!el) return;
 
   const players = room.playerList || Object.values(room.players || {});
