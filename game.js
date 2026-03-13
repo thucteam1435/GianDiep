@@ -567,23 +567,29 @@ function handleBotBattleFlow(room) {
         }
       }, 1000);
 
-      // Render liên tục mỗi giây để timer + suspicion luôn cập nhật
-      if (S.botBattleRenderInterval) clearInterval(S.botBattleRenderInterval);
-      S.botBattleRenderInterval = setInterval(() => {
-        if (parseHash().screen === 'botbattle') renderBotBattleObserver(_lastRoom || room);
-      }, 1000);
+if (S.botBattleTimerInterval) clearInterval(S.botBattleTimerInterval);
+    S.botBattleTimerInterval = setInterval(() => {
+      if (parseHash().screen === 'botbattle') {
+        const m = Math.floor(S.timerRemaining / 60);
+        const s = String(S.timerRemaining % 60).padStart(2, '0');
+        const tel = document.getElementById('bb-timer-display');
+        if (tel) tel.innerHTML = `<div style="font-size:1.6rem;font-weight:bold;color:#ff4444;margin:12px 0;text-align:center">⏰ ${m}:${s}</div>`;
+      }
+    }, 1000);
 
-      initSuspicion(players);
-      injectBotBattleOverlay(room);
-      startBotChatListener();
-      scheduleBotHints(room);
-      S.chatCollapsed = false;
-      document.querySelector('#screen-botbattle .chat-panel')?.classList.remove('collapsed');
-    } else {
-      _lastRoom = room;
-      updateBotBattleOverlay(room);
-    }
-    return;
+    initSuspicion(players);
+    injectBotBattleOverlay(room);
+    startBotChatListener();
+    scheduleBotHints(room);
+    S.chatCollapsed = false;
+    document.querySelector('#screen-botbattle .chat-panel')?.classList.remove('collapsed');
+
+    updateBotBattleSuspicionMatrix();   // ← KHỞI TẠO LẦN ĐẦU
+  } else {
+    _lastRoom = room;
+    updateBotBattleOverlay(room);
+  }
+  return;
   }
   // ... (phần voting, votesummary, spyguess, result giữ nguyên như cũ của bạn)
   if (status === 'voting') {
@@ -762,31 +768,12 @@ function renderBotBattleObserver(room) {
   }
 
   // MA TRẬN NGHI NGỜ (giữ nguyên)
-  let suspHTML = '';
-  if (status === 'discussing' && Object.keys(_suspicionMap).length > 0) {
-    suspHTML = `
+  let suspHTML = status === 'discussing' ? `
     <div class="bb-section">
       <div class="bb-section-title">🧠 Ma trận nghi ngờ</div>
-      <div style="overflow:auto;max-width:100%;max-height:340px;background:#1a1a1a;border-radius:12px;padding:10px;">
-        <table class="bb-susp-table" style="min-width:680px;width:max-content;white-space:nowrap;">
-          <thead><tr><th style="text-align:left">↓ nghi ↗</th>${players.map(p=>`<th>${esc(p.name.split(' ')[0])}</th>`).join('')}</tr></thead>
-          <tbody>${players.map(observer => `
-            <tr>
-              <td style="font-weight:bold">${esc(observer.name)}</td>
-              ${players.map(target => {
-                if (observer.id === target.id) return '<td style="background:#222;color:#555">—</td>';
-                const score = _suspicionMap[observer.id]?.[target.id] ?? 10;
-                const pct = score / 100;
-                const r = Math.round(50 + pct * 200);
-                const g = Math.round(180 - pct * 180);
-                return `<td style="background:rgb(${r},${g},50);color:#fff;font-weight:bold;text-align:center">${score}</td>`;
-              }).join('')}
-            </tr>`).join('')}
-          </tbody>
-        </table>
+      <div id="bb-susp-container" style="overflow:auto;max-width:100%;max-height:340px;background:#1a1a1a;border-radius:12px;padding:10px;">
       </div>
-    </div>`;
-  }
+    </div>` : '';
 
   // BẢNG ĐIỂM (giữ nguyên)
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
@@ -828,6 +815,45 @@ function renderBotBattleObserver(room) {
       <button class="btn" style="opacity:.6;font-size:.8rem" onclick="doLeave()">Thoát phòng</button>
     </div>
   `;
+  if (status === 'discussing') {
+    updateBotBattleSuspicionMatrix();   // khởi tạo ma trận
+  }
+}
+function updateBotBattleSuspicionMatrix() {
+  const cont = document.getElementById('bb-susp-container');
+  if (!cont) return;
+  const players = _lastRoom?.playerList || Object.values(_lastRoom?.players || {});
+  if (players.length === 0 || Object.keys(_suspicionMap).length === 0) {
+    cont.innerHTML = '<div style="padding:20px;color:#666;text-align:center">Chưa có hành động nào để tính nghi ngờ</div>';
+    return;
+  }
+  let html = `<table class="bb-susp-table" style="min-width:680px;width:max-content;white-space:nowrap;">
+    <thead><tr><th style="text-align:left">↓ nghi ↗</th>${players.map(p=>`<th>${esc(p.name.split(' ')[0])}</th>`).join('')}</tr></thead>
+    <tbody>${players.map(observer => `
+      <tr>
+        <td style="font-weight:bold">${esc(observer.name)}</td>
+        ${players.map(target => {
+          if (observer.id === target.id) return '<td style="background:#222;color:#555">—</td>';
+          const score = _suspicionMap[observer.id]?.[target.id] ?? 10;
+          const pct = score / 100;
+          const r = Math.round(50 + pct * 200);
+          const g = Math.round(180 - pct * 180);
+          return `<td style="background:rgb(${r},${g},50);color:#fff;font-weight:bold;text-align:center">${score}</td>`;
+        }).join('')}
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+  cont.innerHTML = html;
+}
+function showBotBubble(playerId, text, dur = 4000) {
+  const el = document.getElementById(`bb-bubble-${playerId}`);
+  if (!el) return;
+  el.textContent = text;
+  el.classList.add('show');
+  setTimeout(() => {
+    el.classList.remove('show');
+    el.textContent = '';
+  }, dur);
 }
 // ====================== HÀM MỚI – BOT TRÊN BÀN TRÒN (ĐÃ FIX) ======================
 function buildBotBattleCircle(room) {
@@ -835,14 +861,12 @@ function buildBotBattleCircle(room) {
   const tableEl = document.getElementById('bb-round-table');
   if (!tableEl) return;
 
-  // Reset bàn tròn
   tableEl.innerHTML = `
     <div class="round-table-surface">
       <div class="table-center-icon">🤖</div>
       <div class="table-center-status">${players.length} bot</div>
     </div>
   `;
-
   const surface = tableEl.querySelector('.round-table-surface');
   const n = players.length;
   const size = tableEl.offsetWidth || 340;
@@ -855,15 +879,22 @@ function buildBotBattleCircle(room) {
     const x = cx + radius * Math.cos(angle);
     const y = cy + radius * Math.sin(angle);
 
+    const sector = Math.atan2(y - cy, x - cx);
+    const arrDir = sector > -Math.PI/4 && sector < Math.PI/4 ? 'arr-right' :
+                   sector >= Math.PI/4 && sector < 3*Math.PI/4 ? 'arr-down' :
+                   sector <= -Math.PI/4 && sector > -3*Math.PI/4 ? 'arr-up' : 'arr-left';
+
     const wrap = document.createElement('div');
     wrap.className = `table-player ${p.eliminated ? 'eliminated' : ''}`;
     wrap.style.left = `${x}px`;
     wrap.style.top = `${y}px`;
+    wrap.style.transform = 'translate(-50%, -50%)';   // ← FIX LỆCH
 
     const isSpy = p.id === (room.round?.spyId || '');
     const isElim = !!p.eliminated;
 
     wrap.innerHTML = `
+      <div class="speech-bubble ${arrDir}" id="bb-bubble-${p.id}"></div>   <!-- ← THÊM BUBBLE -->
       <div class="avatar ${isElim ? 'eliminated' : ''}" style="position:relative;">
         ${makeAvatarHtml(p, '100%', true)}
         ${isSpy ? '<div style="position:absolute;top:-6px;right:-6px;font-size:1.5rem">🕵️</div>' : ''}
@@ -871,7 +902,6 @@ function buildBotBattleCircle(room) {
       </div>
       <div class="avatar-name" style="font-size:0.84rem;margin-top:5px">${esc(p.name)}</div>
     `;
-
     surface.appendChild(wrap);
   });
 }
@@ -1879,6 +1909,10 @@ async function doLeave() {
   if(S.voteTimerInterval) clearInterval(S.voteTimerInterval);
   if(_summaryTimer) clearInterval(_summaryTimer);
   if(_botBattleAdvanceTimer){clearTimeout(_botBattleAdvanceTimer);_botBattleAdvanceTimer=null;}
+  if (S.botBattleTimerInterval) {
+  clearInterval(S.botBattleTimerInterval);
+  S.botBattleTimerInterval = null;
+  }
   if (S.botBattleRenderInterval) {
     clearInterval(S.botBattleRenderInterval);
     S.botBattleRenderInterval = null;
@@ -2012,8 +2046,8 @@ function appendBotChatMsg(m) {
         : `<div class="chat-msg-text">${esc(m.text||'')}</div>`}
     </div>`;
   msgs.appendChild(div);
-  // Đã xóa showBubble vì observer mode không có bubble
-  // Nếu muốn tooltip, có thể thêm hàm showBotTooltip riêng
+  if (m.text) showBotBubble(m.pid, m.text.length > 40 ? m.text.slice(0,40)+'…' : m.text, 4000);
+  if (m.reaction) showBotBubble(m.pid, m.reaction, 2500);
 }
 function toggleBotChat() {
   S.chatCollapsed = !S.chatCollapsed;
