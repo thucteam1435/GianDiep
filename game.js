@@ -725,14 +725,14 @@ async function doNextRoundBotBattle() {
 // ------------------------------------------------
 // BOT BATTLE OBSERVER UI
 // ------------------------------------------------
-// RENDER BOT BATTLE (ĐÃ FIX)
+// RENDER BOT BATTLE OBSERVER (ĐÃ SỬA HOÀN CHỈNH)
 // ------------------------------------------------
 function renderBotBattleObserver(room) {
-  const el = document.getElementById('botbattle-content').style.pointerEvents = 'auto';
-  if (!el) return;
+  const content = document.getElementById('botbattle-content');
+  if (!content) return;
+  content.style.pointerEvents = 'auto';
 
   const players = room.playerList || Object.values(room.players || {});
-  buildBotBattleCircle(room);
   const status = room.status;
   const rd = room.round || {};
   const done = room.botBattleRoundsDone || 0;
@@ -742,6 +742,9 @@ function renderBotBattleObserver(room) {
     renderBotBattleEnd(room);
     return;
   }
+
+  // Bàn tròn bot (luôn render)
+  buildBotBattleCircle(room);
 
   const statusLabel = {
     waiting:'⏳ Chuẩn bị...', playing:'🃏 Chia bài...',
@@ -758,10 +761,7 @@ function renderBotBattleObserver(room) {
     timerHTML = `<div style="font-size:1.6rem;font-weight:bold;color:#ff4444;margin:12px 0;text-align:center">⏰ ${m}:${s}</div>`;
   }
 
-  // Bàn tròn bot
-  buildBotBattleCircle(room);
-
-  // Ma trận nghi ngờ
+  // MA TRẬN NGHI NGỜ (giữ nguyên)
   let suspHTML = '';
   if (status === 'discussing' && Object.keys(_suspicionMap).length > 0) {
     suspHTML = `
@@ -788,7 +788,7 @@ function renderBotBattleObserver(room) {
     </div>`;
   }
 
-  // Scoreboard + Chat
+  // BẢNG ĐIỂM (giữ nguyên)
   const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
   const scoreHTML = `
   <div class="bb-section">
@@ -804,6 +804,7 @@ function renderBotBattleObserver(room) {
       </div>`).join('')}
   </div>`;
 
+  // Chat
   let chatHTML = _bbChatLog.length ? `
     <div class="bb-section">
       <div class="bb-section-title">💬 Chat gần đây</div>
@@ -813,7 +814,7 @@ function renderBotBattleObserver(room) {
         </div>`).join('')}
     </div>` : '';
 
-  el.innerHTML = `
+  content.innerHTML = `
     <div class="bb-header">
       <div class="bb-title">🤖 BOT BATTLE</div>
       <div class="bb-status">${statusLabel}</div>
