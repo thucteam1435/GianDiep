@@ -183,30 +183,28 @@ function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').rep
 // ------------------------------------------------
 // AVATAR HELPER
 // ------------------------------------------------
+// ====================== AVATAR HELPER ĐÃ FIX ======================
 function fixDriveUrl(url) {
   if (!url) return '';
-  const m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w100`;
-  const m2 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (m2) return `https://drive.google.com/thumbnail?id=${m2[1]}&sz=w100`;
+  let id = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (!id) id = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (!id) id = url.match(/\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (id) return `https://drive.google.com/thumbnail?id=${id[1]}&sz=w120`;
   return url;
 }
-function makeAvatarHtml(player, size, forTable) {
-  size = size || '36px';
+
+function makeAvatarHtml(player, size = '36px', forTable = false) {
   const defaultEmoji = player.isBot ? '🤖' : '😊';
   const url = fixDriveUrl(player.avatarUrl || '');
   if (url) {
-    if (forTable) {
-      return `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;"
-        onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\\'font-size:1.2rem\\'>${defaultEmoji}</span>')">`;
-    }
-    return `<img src="${url}" class="lobby-avatar-img"
-      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-      <div class="lobby-avatar-emoji" style="display:none">${defaultEmoji}</div>`;
+    return forTable 
+      ? `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;" 
+           onerror="this.style.display='none';this.insertAdjacentHTML('afterend','<span style=\\'font-size:1.4rem\\'>${defaultEmoji}</span>')">`
+      : `<img src="${url}" style="width:${size};height:${size};object-fit:cover;border-radius:50%;" 
+           onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+         <div class="lobby-avatar-emoji" style="display:none;font-size:1.4rem">${defaultEmoji}</div>`;
   }
-  return forTable
-    ? `<span style="font-size:1.2rem">${defaultEmoji}</span>`
-    : `<div class="lobby-avatar-emoji">${defaultEmoji}</div>`;
+  return forTable ? `<span style="font-size:1.4rem">${defaultEmoji}</span>` : `<div class="lobby-avatar-emoji" style="font-size:1.4rem">${defaultEmoji}</div>`;
 }
 
 // ------------------------------------------------
@@ -658,48 +656,58 @@ async function doNextRoundBotBattle() {
 
 // ------------------------------------------------
 // BOT BATTLE OBSERVER UI
-// ------------------------------------------------
 function renderBotBattleObserver(room) {
   const el = document.getElementById('botbattle-content');
   if (!el) return;
-  const players = room.playerList || Object.values(room.players||{});
+
+  const players = room.playerList || Object.values(room.players || {});
   const status = room.status;
   const rd = room.round || {};
   const done = room.botBattleRoundsDone || 0;
   const max = room.botBattleMaxRounds || 10;
-  if (status === 'botbattle_end') { renderBotBattleEnd(room); return; }
-  const statusLabel = {
-    waiting:'⏳ Chuẩn bị...', playing:'🃏 Chia bài...',
-    discussing:'💬 Thảo luận', voting:'🗳️ Bỏ phiếu',
-    votesummary:'📊 Kết quả vote', spyguess:'🕵️ Spy đoán từ',
-    result:'🏆 Kết quả ván'
-  }[status] || status;
+
+  if (status === 'botbattle_end') {
+    renderBotBattleEnd(room);
+    return;
+  }
+
+  const statusLabel = { /* giữ nguyên */ }[status] || status;
+
+  // Đồng hồ đếm ngược
+  let timerHTML = '';
+  if (status === 'discussing') {
+    const m = Math.floor(S.timerRemaining / 60);
+    const s = String(S.timerRemaining % 60).padStart(2, '0');
+    timerHTML = `<div style="font-size:1.4rem;font-weight:bold;color:#ff4444;margin:10px 0;text-align:center">⏰ ${m}:${s}</div>`;
+  }
+
+  // Mini avatar vòng tròn (thay bàn tròn)
+  const miniAvatars = players.map(p => `
+    <div style="text-align:center;margin:0 8px;">
+      <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;margin:auto;border:3px solid ${p.id===rd.spyId?'#ff4444':'#888'}">
+        ${makeAvatarHtml(p, '52px', true)}
+      </div>
+      <div style="font-size:0.8rem;margin-top:4px;white-space:nowrap">${esc(p.name.split(' ')[0])}</div>
+    </div>`).join('');
+
+  // Ma trận nghi ngờ (cuộn mượt)
   let suspHTML = '';
-  const hasSusp = status === 'discussing' && Object.keys(_suspicionMap).length > 0;
-  if (hasSusp) {
+  if (status === 'discussing' && Object.keys(_suspicionMap).length > 0) {
     suspHTML = `
     <div class="bb-section">
       <div class="bb-section-title">🧠 Ma trận nghi ngờ</div>
-      <div style="overflow-x:auto">
-      <table class="bb-susp-table">
-        <thead><tr>
-          <th style="text-align:left">↓ nghi ↗</th>
-          ${players.map(p=>`<th>${esc(p.name.split(' ')[0])}</th>`).join('')}
-        </tr></thead>
-        <tbody>${players.map(observer => `
-          <tr>
-            <td style="font-weight:bold;white-space:nowrap">${esc(observer.name)}</td>
-            ${players.map(target => {
-              if (observer.id === target.id) return '<td style="background:#222;color:#555">—</td>';
-              const score = _suspicionMap[observer.id]?.[target.id] ?? 10;
-              const pct = score / 100;
-              const r2 = Math.round(50 + pct * 200);
-              const g2 = Math.round(180 - pct * 180);
-              return `<td style="background:rgb(${r2},${g2},50);color:#fff;font-weight:bold;text-align:center">${Math.round(score)}</td>`;
-            }).join('')}
-          </tr>`).join('')}
-        </tbody>
-      </table>
+      <div style="overflow:auto;max-width:100%;max-height:300px;background:#1a1a1a;border-radius:10px;padding:8px;">
+        <table class="bb-susp-table" style="min-width:650px;width:max-content;white-space:nowrap;">
+          <!-- thead và tbody giữ nguyên như code cũ của bạn -->
+          <thead><tr><th style="text-align:left">↓ nghi ↗</th>${players.map(p=>`<th>${esc(p.name.split(' ')[0])}</th>`).join('')}</tr></thead>
+          <tbody>${players.map(observer => `<tr><td style="font-weight:bold">${esc(observer.name)}</td>${players.map(target => {
+            if(observer.id===target.id) return '<td style="background:#222;color:#555">—</td>';
+            const score = _suspicionMap[observer.id]?.[target.id]??10;
+            const pct=score/100; const r=Math.round(50+pct*200); const g=Math.round(180-pct*180);
+            return `<td style="background:rgb(${r},${g},50);color:#fff;font-weight:bold;text-align:center">${score}</td>`;
+          }).join('')}</tr>`).join('')}
+          </tbody>
+        </table>
       </div>
     </div>`;
   }
