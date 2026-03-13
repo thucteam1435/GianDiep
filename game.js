@@ -492,7 +492,7 @@ function startDiscussionScreen(room) {
   S.timerInterval=setInterval(()=>{
     S.timerRemaining=Math.max(0,S.timerRemaining-1);
     updateTableTimer();
-    if(S.timerRemaining===0){clearInterval(S.timerInterval);S.timerRunning=false;if(!S.isBotBattle)doTimeUpVoting();else autoBotVote(_lastRoom);}
+    if(S.timerRemaining===0){clearInterval(S.timerInterval);S.timerRunning=false;if(!S.isBotBattle)doTimeUpVoting();else doTimeUpVoting();}
   },1000);
 
   // Tie notice
@@ -807,6 +807,13 @@ async function triggerBotAction(bot, actionIndex) {
     });
     if (_isBB) showBotBubble(bot.id,text,5000); else showBubble(bot.id,text,5000);
     postBotChat(bot,text);
+    // Cập nhật suspicion map để vote thông minh hơn
+    updateSuspicion(
+      bot.id, action, text,
+      suspect?.id || null,
+      players.map(p=>p.id),
+      room.round
+    );
   } catch(e){
     const sn=suspect?.name||'';
     const sname=sn?sn:'người đó';
@@ -918,7 +925,7 @@ function appendChatMsg(m) {
   if(m.reaction) showBubble(m.pid, m.reaction, 2500);
 }
 
-async function postBotChat(bot,text) {
+async async function postBotChat(bot,text) {
   try {
     const msgId=genId();
     await set(ref(db,`rooms/${S.roomId}/chat/${msgId}`),{
@@ -1513,6 +1520,8 @@ function handleBotBattleFlow(room) {
       // Mở chat ngay (observer muốn xem)
       S.chatCollapsed = false;
       document.querySelector('.chat-panel')?.classList.remove('collapsed');
+      // Init suspicion map cho bot battle
+      initSuspicion(players);
       // Inject overlay stats vào bàn
       injectBotBattleOverlay(room);
     } else {
@@ -1561,7 +1570,7 @@ function handleBotBattleFlow(room) {
   }
 }
 
-async function autoBotConfirmCards(room) {
+async async function autoBotConfirmCards(room) {
   try {
     await runTransaction(roomRef(), r => {
       if (!r || r.status !== 'playing') return r;
@@ -1577,10 +1586,19 @@ async function autoBotConfirmCards(room) {
   } catch(e) { console.error('autoBotConfirmCards', e); }
 }
 
-async function autoBotVote(room) {
+async async function autoBotVote(room) {
+  if (_autoBotVoteDone) return;
   _autoBotVoteDone = true;
+  // Nhỏ delay để Firebase chắc chắn đã set status='voting'
+  await new Promise(r => setTimeout(r, 800));
   try {
-    const players = Object.values(room.players||{});
+    const snap = await get(roomRef());
+    const freshRoom = snap.val();
+    if (!freshRoom || freshRoom.status !== 'voting') {
+      console.log('autoBotVote: status not voting yet, skip');
+      _autoBotVoteDone = false; return;
+    }
+    const players = Object.values(freshRoom.players||{});
     const botVotes = {};
     for (const bot of players.filter(p => p.isBot && !p.eliminated)) {
       const candidates = players.filter(p => p.id !== bot.id && !p.eliminated);
@@ -1597,7 +1615,8 @@ async function autoBotVote(room) {
       if (active.every(p => r.round.votes[p.id])) resolveVotesTx(r);
       return r;
     });
-  } catch(e) { console.error('autoBotVote', e); }
+    console.log('autoBotVote OK:', botVotes);
+  } catch(e) { console.error('autoBotVote', e); _autoBotVoteDone = false; }
 }
 
 async function autoBotSpyGuess(room) {
@@ -1621,7 +1640,7 @@ async function autoBotSpyGuess(room) {
   }, 2500);
 }
 
-async function doNextRoundBotBattle() {
+async async function doNextRoundBotBattle() {
   loading(true);
   try {
     const kw = await getKeywords();
