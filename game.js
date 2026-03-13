@@ -474,6 +474,10 @@ async function doCreateBotBattle() {
     });
     listenRoom(roomId);
     nav('botbattle', {room:roomId});
+    setTimeout(() => {
+      const snap = await get(roomRef(roomId));
+      if (snap.exists()) buildBotBattleCircle(snap.val());
+    }, 800);
     toast('🤖 Phòng bot đang chạy...');
   } catch(e) { toast('❌ '+e.message); console.error(e); }
   finally { loading(false); }
@@ -723,6 +727,7 @@ function renderBotBattleObserver(room) {
   if (!el) return;
 
   const players = room.playerList || Object.values(room.players || {});
+  buildBotBattleCircle(room);
   const status = room.status;
   const rd = room.round || {};
   const done = room.botBattleRoundsDone || 0;
@@ -818,11 +823,13 @@ function renderBotBattleObserver(room) {
     </div>
   `;
 }
+// ====================== HÀM MỚI – BOT TRÊN BÀN TRÒN (ĐÃ FIX) ======================
 function buildBotBattleCircle(room) {
   const players = room.playerList || Object.values(room.players || {});
   const tableEl = document.getElementById('bb-round-table');
   if (!tableEl) return;
 
+  // Reset bàn tròn
   tableEl.innerHTML = `
     <div class="round-table-surface">
       <div class="table-center-icon">🤖</div>
@@ -830,27 +837,36 @@ function buildBotBattleCircle(room) {
     </div>
   `;
 
+  const surface = tableEl.querySelector('.round-table-surface');
   const n = players.length;
-  const size = tableEl.offsetWidth || 320;
-  const cx = size / 2, cy = size / 2, r = size * 0.42;
+  const size = tableEl.offsetWidth || 340;
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size * 0.39;
 
   players.forEach((p, i) => {
     const angle = (2 * Math.PI * i / n) - Math.PI / 2;
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
 
     const wrap = document.createElement('div');
-    wrap.className = 'table-player';
-    wrap.style.left = x + 'px';
-    wrap.style.top = y + 'px';
+    wrap.className = `table-player ${p.eliminated ? 'eliminated' : ''}`;
+    wrap.style.left = `${x}px`;
+    wrap.style.top = `${y}px`;
+
+    const isSpy = p.id === (room.round?.spyId || '');
+    const isElim = !!p.eliminated;
+
     wrap.innerHTML = `
-      <div class="avatar" style="cursor:default">
+      <div class="avatar ${isElim ? 'eliminated' : ''}" style="position:relative;">
         ${makeAvatarHtml(p, '100%', true)}
-        ${p.id === room.round?.spyId ? '<div style="position:absolute;top:-6px;right:-6px;font-size:1.4rem">🕵️</div>' : ''}
+        ${isSpy ? '<div style="position:absolute;top:-6px;right:-6px;font-size:1.5rem">🕵️</div>' : ''}
+        ${isElim ? '<div class="avatar-elim-badge">×</div>' : ''}
       </div>
-      <div class="avatar-name" style="font-size:0.85rem">${esc(p.name)}</div>
+      <div class="avatar-name" style="font-size:0.84rem;margin-top:5px">${esc(p.name)}</div>
     `;
-    tableEl.appendChild(wrap);
+
+    surface.appendChild(wrap);
   });
 }
 // ------------------------------------------------
