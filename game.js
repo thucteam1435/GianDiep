@@ -492,7 +492,7 @@ function startDiscussionScreen(room) {
   S.timerInterval=setInterval(()=>{
     S.timerRemaining=Math.max(0,S.timerRemaining-1);
     updateTableTimer();
-    if(S.timerRemaining===0){clearInterval(S.timerInterval);S.timerRunning=false;doTimeUpVoting();}
+    if(S.timerRemaining===0){clearInterval(S.timerInterval);S.timerRunning=false;if(!S.isBotBattle)doTimeUpVoting();else autoBotVote(_lastRoom);}
   },1000);
 
   // Tie notice
@@ -617,6 +617,7 @@ function updateAvatarVoteBtn() {
 function updateTableAvatars(room) {
   if(!room) return;
   _lastRoom=room;
+  if(S.isBotBattle) updateBotBattleOverlay(room);
   const players=room.playerList||Object.values(room.players||{});
   players.forEach(p=>{
     const av=document.getElementById(`avatar-${p.id}`);
@@ -1340,10 +1341,13 @@ async function doNextRound() {
 
 async function doLeave() {
   stopListening();
+  removeBotBattleOverlay();
   if(S.timerInterval) clearInterval(S.timerInterval);
   if(S.voteTimerInterval) clearInterval(S.voteTimerInterval);
   if(_summaryTimer) clearInterval(_summaryTimer);
+  if(_botBattleAdvanceTimer){clearTimeout(_botBattleAdvanceTimer);_botBattleAdvanceTimer=null;}
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
+  clearBotActionLog();
   const{roomId,playerId}=S;
   S.roomId=''; S.playerId=''; S.playerName=''; S.myWord=null;
   S.earlyVoted=false; S.earlyVoteChoice=null; S.votedThisRound=false;
@@ -1493,42 +1497,27 @@ async function doCreateBotBattle() {
 }
 
 function handleBotBattleFlow(room) {
-  if (parseHash().screen !== 'botbattle') nav('botbattle', {room:S.roomId});
   const status  = room.status;
   const players = room.playerList || Object.values(room.players||{});
-  renderBotBattleObserver(room);
 
   if (status === 'waiting') return;
   if (status === 'playing') { autoBotConfirmCards(room); return; }
 
   if (status === 'discussing') {
+    // Dùng lại y hệt discussion screen bình thường
     if (!S._inDiscussion) {
-      S._inDiscussion = true;
-      _lastRoom = room;
-      S.earlyVoteChoice = null; S.earlyVoted = false;
-      const badgeEl = document.getElementById('bb-tb-round-badge');
-      const wordEl  = document.getElementById('bb-tb-word-display');
-      if (badgeEl) badgeEl.textContent = 'VÒNG ' + (room.roundNumber || 1);
-      if (wordEl)  wordEl.textContent  = '🤖 BOT BATTLE';
-      const startAt  = room.round?.discussStartAt  || Date.now();
-      const duration = room.round?.discussDuration  || 90;
-      S.timerRemaining = Math.max(0, duration - Math.floor((Date.now() - startAt) / 1000));
-      if (S.timerInterval) clearInterval(S.timerInterval);
-      S.timerRunning = true;
-      updateBotBattleTimer();
-      S.timerInterval = setInterval(() => {
-        S.timerRemaining = Math.max(0, S.timerRemaining - 1);
-        updateBotBattleTimer();
-        if (S.timerRemaining === 0) { clearInterval(S.timerInterval); S.timerRunning = false; }
-      }, 1000);
-      initSuspicion(players);
-      buildBotBattleTable(room);
-      startBotChatListener();
-      scheduleBotHints(room);
+      startDiscussionScreen(room);
+      // Đổi word display thành BOT BATTLE thay vì từ khoá
+      const wordEl = document.getElementById('tb-word-display');
+      if (wordEl) wordEl.textContent = '🤖 BOT BATTLE';
+      // Mở chat ngay (observer muốn xem)
       S.chatCollapsed = false;
-      document.querySelector('#screen-botbattle .chat-panel')?.classList.remove('collapsed');
+      document.querySelector('.chat-panel')?.classList.remove('collapsed');
+      // Inject overlay stats vào bàn
+      injectBotBattleOverlay(room);
     } else {
-      updateBotBattleAvatars(room);
+      updateTableAvatars(room);
+      updateBotBattleOverlay(room);
     }
     return;
   }
@@ -1886,6 +1875,46 @@ function toggleBotChat() {
   }
 }
 
+
+// ── Bot Battle overlay stats (góc phải bàn discussion) ──
+function injectBotBattleOverlay(room) {
+  let overlay = document.getElementById('bb-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'bb-overlay';
+    overlay.style.cssText = 'position:fixed;top:56px;right:8px;width:clamp(120px,32vw,180px);background:rgba(6,6,6,.88);border:1px solid #2a2a2a;border-radius:6px;padding:8px 10px;font-size:.7rem;max-height:50vh;overflow-y:auto;z-index:200;pointer-events:none;backdrop-filter:blur(4px)';
+    document.body.appendChild(overlay);
+  }
+  updateBotBattleOverlay(room);
+}
+
+function updateBotBattleOverlay(room) {
+  const overlay = document.getElementById('bb-overlay');
+  if (!overlay) return;
+  const players = room.playerList || Object.values(room.players||{});
+  const rd   = room.round || {};
+  const done = room.botBattleRoundsDone || 0;
+  const max  = room.botBattleMaxRounds  || 10;
+  const sorted = [...players].sort((a,b)=>(b.score||0)-(a.score||0));
+  overlay.innerHTML =
+    '<div style="font-family:'Bebas Neue';font-size:.72rem;letter-spacing:.1em;opacity:.45;margin-bottom:5px">🤖 VÁN ' + (done+1) + '/' + max + '</div>' +
+    sorted.map((p,i) => {
+      const isSpy = p.id === rd.spyId;
+      const col = i===0?'gold':i===1?'#ccc':'#cd7f32';
+      return '<div style="display:flex;align-items:center;gap:3px;margin-bottom:2px">' +
+        '<span style="font-family:'Bebas Neue';color:'+col+';font-size:.78rem;width:16px">#'+(i+1)+'</span>' +
+        '<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.7rem">' + esc(p.name) + '</span>' +
+        (isSpy ? '<span style="color:#e74c3c;font-size:.6rem">🕵️</span>' : '') +
+        '<span style="font-family:'Bebas Neue';font-size:.82rem">' + (p.score||0) + '</span>' +
+        '</div>';
+    }).join('');
+}
+
+function removeBotBattleOverlay() {
+  const el = document.getElementById('bb-overlay');
+  if (el) el.remove();
+}
+
 // -- EXPOSE GLOBALS --
 window.nav=nav; window.copyJoinLink=copyJoinLink; window.flipCard=flipCard;
 window.doCreateRoom=doCreateRoom; window.doJoinRoom=doJoinRoom;
@@ -1893,5 +1922,5 @@ window.doToggleReady=doToggleReady; window.doAddBot=doAddBot; window.doRemoveBot
 window.doConfirmCard=doConfirmCard;
 window.doEarlyVote=doEarlyVote; window.doVote=doVote;
 window.doSpyGuess=doSpyGuess; window.doNextRound=doNextRound; window.doLeave=doLeave;
-window.doCreateBotBattle=doCreateBotBattle; window.toggleBotChat=toggleBotChat;
+window.doCreateBotBattle=doCreateBotBattle; window.toggleBotChat=toggleBotChat; window.removeBotBattleOverlay=removeBotBattleOverlay;
 window.toggleChat=toggleChat; window.doSendChat=doSendChat;
