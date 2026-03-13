@@ -486,6 +486,7 @@ function handleBotBattleFlow(room) {
   const status = room.status;
   const players = room.playerList || Object.values(room.players||{});
   renderBotBattleObserver(room);
+
   if (status === 'waiting') return;
   if (status === 'playing') {
     autoBotConfirmCards(room);
@@ -497,15 +498,28 @@ function handleBotBattleFlow(room) {
       _lastRoom = room;
       S.earlyVoteChoice = null;
       S.earlyVoted = false;
+
       const startAt = room.round?.discussStartAt || Date.now();
       const duration = room.round?.discussDuration || 90;
       S.timerRemaining = Math.max(0, duration - Math.floor((Date.now() - startAt) / 1000));
+
       if (S.timerInterval) clearInterval(S.timerInterval);
       S.timerRunning = true;
       S.timerInterval = setInterval(() => {
         S.timerRemaining = Math.max(0, S.timerRemaining - 1);
-        if (S.timerRemaining === 0) { clearInterval(S.timerInterval); S.timerRunning = false; }
+        if (S.timerRemaining === 0) {
+          clearInterval(S.timerInterval);
+          S.timerRunning = false;
+          doBotBattleTimeUpVoting();   // ← FIX: bot tự vote khi hết giờ
+        }
       }, 1000);
+
+      // Render liên tục mỗi giây để timer + suspicion luôn cập nhật
+      if (S.botBattleRenderInterval) clearInterval(S.botBattleRenderInterval);
+      S.botBattleRenderInterval = setInterval(() => {
+        if (parseHash().screen === 'botbattle') renderBotBattleObserver(_lastRoom || room);
+      }, 1000);
+
       initSuspicion(players);
       injectBotBattleOverlay(room);
       startBotChatListener();
@@ -518,6 +532,7 @@ function handleBotBattleFlow(room) {
     }
     return;
   }
+  // ... (phần voting, votesummary, spyguess, result giữ nguyên như cũ của bạn)
   if (status === 'voting') {
     S._inDiscussion = false;
     if (!_autoBotVoteDone) autoBotVote(room);
@@ -656,6 +671,7 @@ async function doNextRoundBotBattle() {
 
 // ------------------------------------------------
 // BOT BATTLE OBSERVER UI
+// 2. renderBotBattleObserver (đã fix đầy đủ: suspicion luôn hiện + vòng tròn avatar to + timer)
 function renderBotBattleObserver(room) {
   const el = document.getElementById('botbattle-content');
   if (!el) return;
@@ -671,41 +687,52 @@ function renderBotBattleObserver(room) {
     return;
   }
 
-  const statusLabel = { /* giữ nguyên */ }[status] || status;
+  const statusLabel = {
+    waiting:'⏳ Chuẩn bị...', playing:'🃏 Chia bài...',
+    discussing:'💬 Thảo luận', voting:'🗳️ Bỏ phiếu',
+    votesummary:'📊 Kết quả vote', spyguess:'🕵️ Spy đoán từ',
+    result:'🏆 Kết quả ván'
+  }[status] || status;
 
-  // Đồng hồ đếm ngược
+  // Timer liên tục
   let timerHTML = '';
   if (status === 'discussing') {
     const m = Math.floor(S.timerRemaining / 60);
     const s = String(S.timerRemaining % 60).padStart(2, '0');
-    timerHTML = `<div style="font-size:1.4rem;font-weight:bold;color:#ff4444;margin:10px 0;text-align:center">⏰ ${m}:${s}</div>`;
+    timerHTML = `<div style="font-size:1.6rem;font-weight:bold;color:#ff4444;margin:12px 0;text-align:center">⏰ ${m}:${s}</div>`;
   }
 
-  // Mini avatar vòng tròn (thay bàn tròn)
+  // Vòng tròn avatar (bàn tròn mini - giống phòng player)
   const miniAvatars = players.map(p => `
-    <div style="text-align:center;margin:0 8px;">
-      <div style="width:52px;height:52px;border-radius:50%;overflow:hidden;margin:auto;border:3px solid ${p.id===rd.spyId?'#ff4444':'#888'}">
-        ${makeAvatarHtml(p, '52px', true)}
+    <div style="text-align:center;margin:0 10px;">
+      <div style="width:56px;height:56px;border-radius:50%;overflow:hidden;margin:auto;border:3px solid ${p.id===rd.spyId?'#ff4444':'#666'};box-shadow:0 0 10px rgba(255,68,68,0.3)">
+        ${makeAvatarHtml(p, '56px', true)}
       </div>
-      <div style="font-size:0.8rem;margin-top:4px;white-space:nowrap">${esc(p.name.split(' ')[0])}</div>
+      <div style="font-size:0.85rem;margin-top:4px;white-space:nowrap">${esc(p.name.split(' ')[0])}</div>
+      ${p.id===rd.spyId ? '<span style="color:#ff4444;font-size:1.1rem">🕵️</span>' : ''}
     </div>`).join('');
 
-  // Ma trận nghi ngờ (cuộn mượt)
+  // Ma trận nghi ngờ - LUÔN HIỆN khi thảo luận
   let suspHTML = '';
-  if (status === 'discussing' && Object.keys(_suspicionMap).length > 0) {
+  if (status === 'discussing') {
     suspHTML = `
     <div class="bb-section">
       <div class="bb-section-title">🧠 Ma trận nghi ngờ</div>
-      <div style="overflow:auto;max-width:100%;max-height:300px;background:#1a1a1a;border-radius:10px;padding:8px;">
-        <table class="bb-susp-table" style="min-width:650px;width:max-content;white-space:nowrap;">
-          <!-- thead và tbody giữ nguyên như code cũ của bạn -->
+      <div style="overflow:auto;max-width:100%;max-height:340px;background:#1a1a1a;border-radius:12px;padding:10px;">
+        <table class="bb-susp-table" style="min-width:680px;width:max-content;white-space:nowrap;">
           <thead><tr><th style="text-align:left">↓ nghi ↗</th>${players.map(p=>`<th>${esc(p.name.split(' ')[0])}</th>`).join('')}</tr></thead>
-          <tbody>${players.map(observer => `<tr><td style="font-weight:bold">${esc(observer.name)}</td>${players.map(target => {
-            if(observer.id===target.id) return '<td style="background:#222;color:#555">—</td>';
-            const score = _suspicionMap[observer.id]?.[target.id]??10;
-            const pct=score/100; const r=Math.round(50+pct*200); const g=Math.round(180-pct*180);
-            return `<td style="background:rgb(${r},${g},50);color:#fff;font-weight:bold;text-align:center">${score}</td>`;
-          }).join('')}</tr>`).join('')}
+          <tbody>${players.map(observer => `
+            <tr>
+              <td style="font-weight:bold">${esc(observer.name)}</td>
+              ${players.map(target => {
+                if (observer.id === target.id) return '<td style="background:#222;color:#555">—</td>';
+                const score = _suspicionMap[observer.id]?.[target.id] ?? 10;
+                const pct = score / 100;
+                const r = Math.round(50 + pct * 200);
+                const g = Math.round(180 - pct * 180);
+                return `<td style="background:rgb(${r},${g},50);color:#fff;font-weight:bold;text-align:center">${score}</td>`;
+              }).join('')}
+            </tr>`).join('')}
           </tbody>
         </table>
       </div>
@@ -753,6 +780,35 @@ function renderBotBattleObserver(room) {
       <button class="btn" style="opacity:.6;font-size:.8rem" onclick="doLeave()">Thoát phòng</button>
     </div>
   `;
+}
+
+// 3. Thêm hàm mới này (dán bất kỳ đâu sau renderBotBattleObserver)
+async function doBotBattleTimeUpVoting() {
+  const roomSnap = await get(roomRef()).catch(()=>null);
+  const roomData = roomSnap?.val() || null;
+  if (!roomData || roomData.status !== 'discussing') return;
+
+  const botVotes = {};
+  const bots = Object.values(roomData.players||{}).filter(p => p.isBot && !p.eliminated);
+  await Promise.all(bots.map(async bot => {
+    const t = await getBotVoteTarget(bot, roomData);
+    if (t) botVotes[bot.id] = t;
+  }));
+
+  await runTransaction(roomRef(), room => {
+    if (!room || room.status !== 'discussing') return room;
+    room.status = 'voting';
+    room.round.votes = {...(room.round.earlyVotes||{})};
+    delete room.round.earlyVotes;
+
+    const players = Object.values(room.players||{});
+    players.filter(p => p.isBot && !p.eliminated).forEach(bot => {
+      const others = players.filter(p => p.id !== bot.id && !p.eliminated);
+      room.round.votes[bot.id] = botVotes[bot.id] || (others.length ? randItem(others).id : null);
+    });
+    room.round.voteDeadline = Date.now() + 10000;
+    return room;
+  });
 }
 function renderBotBattleEnd(room) {
   const el = document.getElementById('botbattle-content');
@@ -1726,6 +1782,10 @@ async function doLeave() {
   if(S.voteTimerInterval) clearInterval(S.voteTimerInterval);
   if(_summaryTimer) clearInterval(_summaryTimer);
   if(_botBattleAdvanceTimer){clearTimeout(_botBattleAdvanceTimer);_botBattleAdvanceTimer=null;}
+  if (S.botBattleRenderInterval) {
+    clearInterval(S.botBattleRenderInterval);
+    S.botBattleRenderInterval = null;
+  }
   _botHintTimers.forEach(t=>clearTimeout(t)); _botHintTimers=[];
   clearBotActionLog();
   clearSuspicion();
