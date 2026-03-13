@@ -474,11 +474,16 @@ async function doCreateBotBattle() {
     });
     listenRoom(roomId);
     nav('botbattle', {room:roomId});
-    setTimeout(() => {
-      const snap = await get(roomRef(roomId));
-      if (snap.exists()) buildBotBattleCircle(snap.val());
-    }, 800);
     toast('🤖 Phòng bot đang chạy...');
+
+    // ←←← PHẦN MỚI: Render bàn tròn bot ngay khi vào màn hình + fix await
+    setTimeout(async () => {
+      const snap = await get(roomRef(roomId));
+      if (snap.exists()) {
+        buildBotBattleCircle(snap.val());
+      }
+    }, 800);
+
   } catch(e) { toast('❌ '+e.message); console.error(e); }
   finally { loading(false); }
 }
