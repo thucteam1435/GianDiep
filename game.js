@@ -317,7 +317,17 @@ function handleRoomUpdate(room) {
   }
   if (status==='spyguess') {
     S._inDiscussion=false;
-    if (cur!=='spyguess') showSpyGuess(room); return;
+    if (cur!=='spyguess') showSpyGuess(room);
+  
+    // ====================== FIX SPY BOT TỰ ĐOÁN ======================
+    const spyId = room.round?.spyId;
+    const spy = room.players?.[spyId];
+    if (spy?.isBot && !_autoBotSpyGuessDone) {
+      _autoBotSpyGuessDone = false;           // reset an toàn
+      autoBotSpyGuess(room);
+    }
+    // ================================================================
+    return;
   }
   if (status==='result') {
     S._inDiscussion=false;
